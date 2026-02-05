@@ -10,6 +10,8 @@ dependencies:
     github: mamantoha/crest
 
 targets:
+  anthropic:
+    main: examples/cli.cr
   hace:
     main: lib/hace/src/main.cr # hace doesnt build with cr 1.19 due to a crinja bug! install via yay instead for time being
   ameba:
