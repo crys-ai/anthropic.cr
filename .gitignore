@@ -23,3 +23,5 @@
 .croupier
 
 .claude/tsc-cache/
+
+.env
