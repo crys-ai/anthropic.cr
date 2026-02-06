@@ -31,6 +31,16 @@ end
 require "./anthropic/version"
 require "./anthropic/errors"
 
+# Content (generic content blocks for requests)
+require "./anthropic/content/type"
+require "./anthropic/content/data"
+require "./anthropic/content/block"
+require "./anthropic/content/text_data"
+require "./anthropic/content/image_data"
+require "./anthropic/content/tool_use_data"
+require "./anthropic/content/tool_result_data"
+require "./anthropic/content"
+
 # Models (order matters - dependencies first)
 require "./anthropic/models/content"
 require "./anthropic/models/usage"
