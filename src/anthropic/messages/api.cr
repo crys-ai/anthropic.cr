@@ -18,4 +18,14 @@ class Anthropic::Messages::API
     request = Request.new(model, messages, max_tokens, **options)
     create(request)
   end
+
+  def create(
+    model : String,
+    messages : Array(Message),
+    max_tokens : Int32,
+    **options,
+  ) : Response
+    request = Request.new(model, messages, max_tokens, **options)
+    create(request)
+  end
 end
