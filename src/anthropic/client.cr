@@ -28,7 +28,6 @@ class Anthropic::Client
       "#{@base_url}#{path}",
       headers: headers,
       form: body,
-      json: true,
       read_timeout: @timeout
     )
   rescue ex : Crest::RequestFailed
@@ -39,6 +38,7 @@ class Anthropic::Client
     {
       "x-api-key"         => @api_key,
       "anthropic-version" => API_VERSION,
+      "Content-Type"      => "application/json",
     }
   end
 
