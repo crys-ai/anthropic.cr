@@ -49,4 +49,60 @@ describe Anthropic::Messages::Request do
       json.should_not contain("system")
     end
   end
+
+  describe "custom model strings" do
+    it "accepts custom model string" do
+      request = Anthropic::Messages::Request.new(
+        model: "claude-custom-model-2026",
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024
+      )
+      request.model.should eq("claude-custom-model-2026")
+    end
+
+    it "stores custom model as String type" do
+      request = Anthropic::Messages::Request.new(
+        model: "custom-model",
+        messages: [Anthropic::Message.user("Test")],
+        max_tokens: 512
+      )
+      request.model.should be_a(String)
+    end
+
+    it "serializes custom model string to JSON" do
+      request = Anthropic::Messages::Request.new(
+        model: "claude-experimental-v2",
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024
+      )
+      json = request.to_json
+      json.should contain(%("model":"claude-experimental-v2"))
+    end
+
+    it "preserves Model enum when using enum constructor" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model::ClaudeOpus4_5,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024
+      )
+      request.model.should be_a(Anthropic::Model)
+      request.model.should eq(Anthropic::Model::ClaudeOpus4_5)
+    end
+
+    it "both constructors work correctly" do
+      enum_request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Test")],
+        max_tokens: 100
+      )
+      string_request = Anthropic::Messages::Request.new(
+        model: "custom-model",
+        messages: [Anthropic::Message.user("Test")],
+        max_tokens: 100
+      )
+
+      enum_request.model.should be_a(Anthropic::Model)
+      string_request.model.should be_a(String)
+    end
+  end
 end

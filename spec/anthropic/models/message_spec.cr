@@ -79,4 +79,38 @@ describe Anthropic::Message do
       restored.content.should eq(original.content)
     end
   end
+
+  describe "content block array parsing" do
+    it "parses text content blocks from JSON" do
+      json = %({"role":"user","content":[{"type":"text","text":"Hello!"}]})
+      msg = Anthropic::Message.from_json(json)
+      msg.role.should eq(Anthropic::Message::Role::User)
+      msg.content.should be_a(Array(Anthropic::ContentBlock))
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+    end
+
+    it "parses multiple text blocks" do
+      json = %({"role":"assistant","content":[{"type":"text","text":"Part 1"},{"type":"text","text":"Part 2"}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(2)
+    end
+
+    it "parses tool_use content blocks" do
+      json = %({"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"search","input":{"q":"test"}}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+      blocks.first.type.should eq(Anthropic::Content::Type::ToolUse)
+    end
+
+    it "parses tool_result content blocks" do
+      json = %({"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_1","content":"42","is_error":false}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+      blocks.first.type.should eq(Anthropic::Content::Type::ToolResult)
+    end
+  end
 end
