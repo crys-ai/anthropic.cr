@@ -12,20 +12,7 @@ struct Anthropic::Messages::Request
   getter stream : Bool?
 
   def initialize(
-    @model : Model,
-    @messages : Array(Message),
-    @max_tokens : Int32,
-    @system : String? = nil,
-    @temperature : Float64? = nil,
-    @top_p : Float64? = nil,
-    @top_k : Int32? = nil,
-    @stop_sequences : Array(String)? = nil,
-    @stream : Bool? = nil,
-  )
-  end
-
-  def initialize(
-    @model : String,
+    @model : Model | String,
     @messages : Array(Message),
     @max_tokens : Int32,
     @system : String? = nil,
@@ -52,7 +39,7 @@ struct Anthropic::Messages::Request
       json.field "top_p", @top_p if @top_p
       json.field "top_k", @top_k if @top_k
       json.field "stop_sequences", @stop_sequences if @stop_sequences
-      json.field "stream", @stream if @stream
+      json.field "stream", @stream unless @stream.nil?
     end
   end
 end

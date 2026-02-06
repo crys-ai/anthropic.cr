@@ -48,6 +48,26 @@ describe Anthropic::Messages::Request do
       json.should_not contain("temperature")
       json.should_not contain("system")
     end
+
+    it "serializes stream true" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        stream: true
+      )
+      JSON.parse(request.to_json)["stream"].as_bool.should be_true
+    end
+
+    it "serializes stream false" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        stream: false
+      )
+      JSON.parse(request.to_json)["stream"].as_bool.should be_false
+    end
   end
 
   describe "custom model strings" do
