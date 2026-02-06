@@ -37,6 +37,9 @@ class Anthropic::APIError < Anthropic::Error
     when 401 then AuthenticationError
     when 403 then PermissionError
     when 404 then NotFoundError
+    when 408 then RequestTimeoutError
+    when 409 then ConflictError
+    when 422 then UnprocessableEntityError
     when 429 then RateLimitError
     when 529 then OverloadedError
     else          APIError
@@ -60,4 +63,13 @@ class Anthropic::InvalidRequestError < Anthropic::APIError
 end
 
 class Anthropic::OverloadedError < Anthropic::APIError
+end
+
+class Anthropic::RequestTimeoutError < Anthropic::APIError
+end
+
+class Anthropic::ConflictError < Anthropic::APIError
+end
+
+class Anthropic::UnprocessableEntityError < Anthropic::APIError
 end

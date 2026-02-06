@@ -94,3 +94,39 @@ describe Anthropic::InvalidRequestError do
     error.error_message.should eq("Missing required field")
   end
 end
+
+describe Anthropic::RequestTimeoutError do
+  it "inherits from APIError" do
+    error = Anthropic::RequestTimeoutError.new(408, "request_timeout_error", "Request timed out")
+    error.should be_a(Anthropic::APIError)
+  end
+
+  it "stores timeout details" do
+    error = Anthropic::RequestTimeoutError.new(408, "request_timeout_error", "Request timed out")
+    error.status_code.should eq(408)
+  end
+end
+
+describe Anthropic::ConflictError do
+  it "inherits from APIError" do
+    error = Anthropic::ConflictError.new(409, "conflict_error", "Resource conflict")
+    error.should be_a(Anthropic::APIError)
+  end
+
+  it "stores conflict details" do
+    error = Anthropic::ConflictError.new(409, "conflict_error", "Resource conflict")
+    error.status_code.should eq(409)
+  end
+end
+
+describe Anthropic::UnprocessableEntityError do
+  it "inherits from APIError" do
+    error = Anthropic::UnprocessableEntityError.new(422, "unprocessable_entity_error", "Invalid entity")
+    error.should be_a(Anthropic::APIError)
+  end
+
+  it "stores unprocessable entity details" do
+    error = Anthropic::UnprocessableEntityError.new(422, "unprocessable_entity_error", "Invalid entity")
+    error.status_code.should eq(422)
+  end
+end
