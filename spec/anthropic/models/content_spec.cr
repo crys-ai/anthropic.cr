@@ -1,12 +1,10 @@
 require "../../spec_helper"
 
-# ResponseTextBlock is used for parsing API responses.
-# TextBlock is an alias for backward compatibility.
 describe Anthropic::ResponseTextBlock do
   describe "#initialize" do
     it "sets type to text" do
       block = Anthropic::ResponseTextBlock.new("Hello!")
-      block.type.should eq(Anthropic::Content::Type::Text)
+      block.type.should eq("text")
       block.text.should eq("Hello!")
     end
 
@@ -45,9 +43,4 @@ describe Anthropic::ResponseTextBlock do
     end
   end
 
-  describe "TextBlock alias" do
-    it "is aliased for backward compatibility" do
-      Anthropic::TextBlock.should eq(Anthropic::ResponseTextBlock)
-    end
-  end
 end
