@@ -147,33 +147,4 @@ describe Anthropic::Converters do
       end
     end
   end
-
-  describe Anthropic::Converters::ContentTypeConverter do
-    it "parses 'text' to Content::Type::Text" do
-      json = %({"type":"text","text":"hello"})
-      block = Anthropic::ResponseTextBlock.from_json(json)
-      block.type.should eq(Anthropic::Content::Type::Text)
-    end
-
-    it "serializes Content::Type to snake_case string" do
-      json = JSON.build do |builder|
-        Anthropic::Converters::ContentTypeConverter.to_json(Anthropic::Content::Type::ToolUse, builder)
-      end
-      json.should eq(%("tool_use"))
-    end
-
-    it "serializes Text type" do
-      json = JSON.build do |builder|
-        Anthropic::Converters::ContentTypeConverter.to_json(Anthropic::Content::Type::Text, builder)
-      end
-      json.should eq(%("text"))
-    end
-
-    it "serializes Image type" do
-      json = JSON.build do |builder|
-        Anthropic::Converters::ContentTypeConverter.to_json(Anthropic::Content::Type::Image, builder)
-      end
-      json.should eq(%("image"))
-    end
-  end
 end

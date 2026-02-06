@@ -29,15 +29,4 @@ module Anthropic::Converters
       end
     end
   end
-
-  # Converts Content::Type enum to/from JSON snake_case strings.
-  module ContentTypeConverter
-    def self.from_json(pull : JSON::PullParser) : Content::Type
-      Content::Type.parse(pull.read_string)
-    end
-
-    def self.to_json(value : Content::Type, json : JSON::Builder) : Nil
-      json.string(value.to_s.underscore)
-    end
-  end
 end
