@@ -7,10 +7,10 @@ system_prompt : String? = nil
 verbose = false
 show_help = false
 
-parser = OptionParser.new do |parser|
-  parser.banner = "Usage: crystal run examples/cli.cr -- message <text> [options]"
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: crystal run examples/cli.cr -- message <text> [options]"
 
-  parser.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku, or enum e.g. claude_opus_4_5)") do |value|
+  opts.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku, or enum e.g. claude_opus_4_5)") do |value|
     begin
       model = Anthropic::Model.from_friendly(value)
     rescue ex : ArgumentError
@@ -18,19 +18,19 @@ parser = OptionParser.new do |parser|
     end
   end
 
-  parser.on("-t TOKENS", "--max-tokens=TOKENS", "Max tokens (default: #{max_tokens})") do |value|
+  opts.on("-t TOKENS", "--max-tokens=TOKENS", "Max tokens (default: #{max_tokens})") do |value|
     max_tokens = value.to_i
   end
 
-  parser.on("-s SYSTEM", "--system=SYSTEM", "System prompt") do |value|
+  opts.on("-s SYSTEM", "--system=SYSTEM", "System prompt") do |value|
     system_prompt = value
   end
 
-  parser.on("-v", "--verbose", "Show token usage") do
+  opts.on("-v", "--verbose", "Show token usage") do
     verbose = true
   end
 
-  parser.on("-h", "--help", "Show help") do
+  opts.on("-h", "--help", "Show help") do
     show_help = true
   end
 end

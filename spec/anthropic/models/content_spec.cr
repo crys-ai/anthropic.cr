@@ -42,5 +42,4 @@ describe Anthropic::ResponseTextBlock do
       restored.text.should eq(original.text)
     end
   end
-
 end
