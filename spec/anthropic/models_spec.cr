@@ -57,4 +57,35 @@ describe Anthropic::Model do
       Anthropic::Model.parse("claude_opus_4_5").should eq(Anthropic::Model::ClaudeOpus4_5)
     end
   end
+
+  describe ".from_friendly" do
+    it "parses 'opus' alias" do
+      Anthropic::Model.from_friendly("opus").should eq(Anthropic::Model::ClaudeOpus4_5)
+    end
+
+    it "parses 'sonnet' alias" do
+      Anthropic::Model.from_friendly("sonnet").should eq(Anthropic::Model::ClaudeSonnet4_5)
+    end
+
+    it "parses 'haiku' alias" do
+      Anthropic::Model.from_friendly("haiku").should eq(Anthropic::Model::ClaudeHaiku3_5)
+    end
+
+    it "is case-insensitive for aliases" do
+      Anthropic::Model.from_friendly("OPUS").should eq(Anthropic::Model::ClaudeOpus4_5)
+      Anthropic::Model.from_friendly("Sonnet").should eq(Anthropic::Model::ClaudeSonnet4_5)
+      Anthropic::Model.from_friendly("HAIKU").should eq(Anthropic::Model::ClaudeHaiku3_5)
+    end
+
+    it "falls back to Model.parse for enum-style names" do
+      Anthropic::Model.from_friendly("claude_opus_4_5").should eq(Anthropic::Model::ClaudeOpus4_5)
+      Anthropic::Model.from_friendly("ClaudeSonnet4_5").should eq(Anthropic::Model::ClaudeSonnet4_5)
+    end
+
+    it "raises on unknown model" do
+      expect_raises(ArgumentError) do
+        Anthropic::Model.from_friendly("unknown_model")
+      end
+    end
+  end
 end

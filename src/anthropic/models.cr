@@ -39,4 +39,16 @@ enum Anthropic::Model
   def self.haiku : Model
     ClaudeHaiku3_5
   end
+
+  # Parses a model name from a string, supporting friendly aliases
+  # ("opus", "sonnet", "haiku") in addition to the standard enum names
+  # accepted by `Model.parse` (e.g. "ClaudeOpus4_5", "claude_opus_4_5").
+  def self.from_friendly(value : String) : Model
+    case value.downcase
+    when "opus"   then opus
+    when "sonnet" then sonnet
+    when "haiku"  then haiku
+    else               parse(value)
+    end
+  end
 end
