@@ -92,7 +92,7 @@ struct Anthropic::Message
       when "name"        then block_name = pull.read_string
       when "input"       then block_input = JSON::Any.new(pull)
       when "tool_use_id" then tool_use_id = pull.read_string
-      when "content"     then block_text = pull.read_string
+      when "content"     then block_text = parse_tool_result_content(pull)
       when "is_error"    then is_error = pull.read_bool
       else                    pull.skip
       end
@@ -113,6 +113,23 @@ struct Anthropic::Message
       end
     end
     yield media_type, data
+  end
+
+  # Parses tool_result content — either a string or an array of content blocks.
+  # When array, extracts text from text blocks and joins.
+  protected def self.parse_tool_result_content(pull : JSON::PullParser) : String
+    if pull.kind.string?
+      pull.read_string
+    else
+      parts = [] of String
+      pull.read_array do
+        block = JSON::Any.new(pull)
+        if block["type"]?.try(&.as_s) == "text"
+          parts << block["text"].as_s
+        end
+      end
+      parts.join
+    end
   end
 
   # Builds the appropriate ContentBlock from parsed fields.
