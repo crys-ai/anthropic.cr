@@ -167,8 +167,18 @@ crystal run examples/cli.cr -- message "Hello!"
 # With options
 crystal run examples/cli.cr -- message "Hello!" -m opus -t 2048 -v
 
-# Available options
--m MODEL    Model (opus, sonnet, haiku, claude_opus_4_5, etc.)
+# Show help
+crystal run examples/cli.cr -- -h
+
+# Model values
+# Aliases: opus, sonnet, haiku
+# Enum names: see `--help` output (e.g. claude_opus4_5)
+
+# Invalid input handling
+# Invalid model/option values print "Error: ..." + usage and exit with code 1
+
+# Options
+-m MODEL    Model alias or enum name
 -t TOKENS   Max tokens
 -s SYSTEM   System prompt
 -v          Verbose (show token usage)

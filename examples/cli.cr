@@ -5,15 +5,17 @@ model = Anthropic::Model.opus
 max_tokens = 1024
 system_prompt : String? = nil
 verbose = false
+show_help = false
 
-command = ARGV.shift?
-text = ARGV.shift?
-
-OptionParser.parse do |parser|
+parser = OptionParser.new do |parser|
   parser.banner = "Usage: crystal run examples/cli.cr -- message <text> [options]"
 
-  parser.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku)") do |value|
-    model = Anthropic::Model.parse(value)
+  parser.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku, or enum e.g. claude_opus_4_5)") do |value|
+    begin
+      model = Anthropic::Model.from_friendly(value)
+    rescue ex : ArgumentError
+      raise ArgumentError.new("Invalid model '#{value}'. Use opus, sonnet, haiku, or enum e.g. claude_opus_4_5")
+    end
   end
 
   parser.on("-t TOKENS", "--max-tokens=TOKENS", "Max tokens (default: #{max_tokens})") do |value|
@@ -29,16 +31,35 @@ OptionParser.parse do |parser|
   end
 
   parser.on("-h", "--help", "Show help") do
-    puts parser
-    puts "\nAvailable models:"
-    Anthropic::Model.each { |value| puts "  #{value.to_s.underscore}" }
-    exit
+    show_help = true
   end
 end
 
+begin
+  parser.parse
+rescue ex : OptionParser::Exception
+  STDERR.puts "Error: #{ex.message}"
+  STDERR.puts parser
+  exit 1
+rescue ex : ArgumentError
+  STDERR.puts "Error: #{ex.message}"
+  STDERR.puts parser
+  exit 1
+end
+
+if show_help
+  puts parser
+  puts "\nAvailable models:"
+  puts "  Aliases:  opus, sonnet, haiku"
+  puts "  Enum:     #{Anthropic::Model.values.map(&.to_s.underscore).join(", ")}"
+  exit
+end
+
+command = ARGV.shift?
+text = ARGV.shift?
+
 if command != "message" || text.nil? || text.empty?
-  STDERR.puts "Usage: crystal run examples/cli.cr -- message <text> [options]"
-  STDERR.puts "Example: crystal run examples/cli.cr -- message \"Hello\" -m opus"
+  STDERR.puts parser
   exit 1
 end
 

@@ -1,6 +1,6 @@
 # Anthropic API client for Crystal
 #
-# A pure Crystal client for the Anthropic Messages API.
+# A Crystal client for the Anthropic Messages API.
 #
 # ## Quick Start
 #
