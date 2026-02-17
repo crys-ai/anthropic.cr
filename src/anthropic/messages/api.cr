@@ -28,4 +28,40 @@ class Anthropic::Messages::API
     request = Request.new(model, messages, max_tokens, **options)
     create(request)
   end
+
+  # Streaming: yields StreamEvent for each SSE event
+  def stream(request : Request, &block : StreamEvent ->) : Nil
+    request.stream = true
+
+    @client.post_stream(ENDPOINT, request.to_json) do |response|
+      EventSource.new(response.body_io)
+        .on_message do |msg, _|
+          data = msg.data.join("\n")
+          block.call(StreamEvent.parse(msg.event, data))
+        end
+        .run
+    end
+  end
+
+  def stream(
+    model : Model,
+    messages : Array(Message),
+    max_tokens : Int32,
+    **options,
+    &block : StreamEvent ->
+  ) : Nil
+    request = Request.new(model, messages, max_tokens, **options)
+    stream(request, &block)
+  end
+
+  def stream(
+    model : String,
+    messages : Array(Message),
+    max_tokens : Int32,
+    **options,
+    &block : StreamEvent ->
+  ) : Nil
+    request = Request.new(model, messages, max_tokens, **options)
+    stream(request, &block)
+  end
 end

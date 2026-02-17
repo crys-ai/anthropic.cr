@@ -100,13 +100,13 @@ describe Anthropic::Client do
       client.post("/v1/messages", %({"model":"test"}))
     end
 
-    it "returns Crest::Response on success" do
+    it "returns HTTP::Client::Response on success" do
       WebMock.stub(:post, "https://api.anthropic.com/v1/messages")
         .to_return(status: 200, body: TestHelpers.response_json)
 
       client = TestHelpers.test_client
       response = client.post("/v1/messages", "{}")
-      response.should be_a(Crest::Response)
+      response.should be_a(HTTP::Client::Response)
     end
   end
 

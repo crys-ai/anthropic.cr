@@ -9,7 +9,7 @@ struct Anthropic::Messages::Request
   getter top_p : Float64?
   getter top_k : Int32?
   getter stop_sequences : Array(String)?
-  getter stream : Bool?
+  property stream : Bool?
 
   def initialize(
     @model : Model | String,

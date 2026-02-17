@@ -12,7 +12,7 @@ class Anthropic::APIError < Anthropic::Error
     super("#{@error_type}: #{@error_message} (HTTP #{@status_code})")
   end
 
-  def self.from_response(response : Crest::Response) : APIError
+  def self.from_response(response : HTTP::Client::Response) : APIError
     body = parse_error_body(response.body)
     error_class_for(response.status_code).new(
       response.status_code,

@@ -55,3 +55,7 @@ require "./anthropic/messages/api"
 
 # Client (depends on Messages::API)
 require "./anthropic/client"
+
+# Streaming (SSE support)
+require "./anthropic/streaming/event_source"
+require "./anthropic/streaming/event"
