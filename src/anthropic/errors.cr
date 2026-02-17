@@ -27,7 +27,7 @@ class Anthropic::APIError < Anthropic::Error
       "type"    => parsed.dig("error", "type").as_s,
       "message" => parsed.dig("error", "message").as_s,
     }
-  rescue ex : JSON::ParseException | KeyError
+  rescue JSON::ParseException | KeyError
     {"type" => "unknown_error", "message" => body}
   end
 

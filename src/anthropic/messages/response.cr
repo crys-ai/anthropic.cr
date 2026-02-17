@@ -57,9 +57,9 @@ struct Anthropic::Messages::Response
   end
 
   def text : String
-    content.compact_map { |block|
+    content.compact_map do |block|
       block.is_a?(ResponseTextBlock) ? block.text : nil
-    }.join
+    end.join
   end
 
   def tool_use_blocks : Array(ResponseToolUseBlock)

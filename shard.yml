@@ -19,6 +19,7 @@ targets:
 development_dependencies:
   ameba:
     github: crystal-ameba/ameba
+    branch: master
   hace:
     github: ralsina/hace
   webmock:
