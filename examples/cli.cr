@@ -10,11 +10,11 @@ show_help = false
 parser = OptionParser.new do |opts|
   opts.banner = "Usage: crystal run examples/cli.cr -- message <text> [options]"
 
-  opts.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku, or enum e.g. claude_opus_4_5)") do |value|
+  opts.on("-m MODEL", "--model=MODEL", "Model (opus, sonnet, haiku, or enum e.g. claude_opus_4_6)") do |value|
     begin
       model = Anthropic::Model.from_friendly(value)
     rescue ArgumentError
-      raise ArgumentError.new("Invalid model '#{value}'. Use opus, sonnet, haiku, or enum e.g. claude_opus_4_5")
+      raise ArgumentError.new("Invalid model '#{value}'. Use opus, sonnet, haiku, or enum e.g. claude_opus_4_6")
     end
   end
 

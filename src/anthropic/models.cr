@@ -1,5 +1,9 @@
 enum Anthropic::Model
-  # Claude 4.5 models (latest)
+  # Claude 4.6 models (latest)
+  ClaudeOpus4_6
+  ClaudeSonnet4_6
+
+  # Claude 4.5 models
   ClaudeOpus4_5
   ClaudeSonnet4_5
 
@@ -14,6 +18,8 @@ enum Anthropic::Model
   # Returns the API model identifier string.
   def to_api_string : String
     case self
+    in ClaudeOpus4_6   then "claude-opus-4-6"
+    in ClaudeSonnet4_6 then "claude-sonnet-4-6"
     in ClaudeOpus4_5   then "claude-opus-4-5-20251101"
     in ClaudeSonnet4_5 then "claude-sonnet-4-5-20251101"
     in ClaudeOpus4     then "claude-opus-4-20251101"
@@ -27,13 +33,13 @@ enum Anthropic::Model
     json.string(to_api_string)
   end
 
-  # Aliases for convenience
+  # Aliases for convenience (point to latest versions)
   def self.opus : Model
-    ClaudeOpus4_5
+    ClaudeOpus4_6
   end
 
   def self.sonnet : Model
-    ClaudeSonnet4_5
+    ClaudeSonnet4_6
   end
 
   def self.haiku : Model

@@ -71,7 +71,7 @@ describe Anthropic::Messages::API do
         .to_return do |request|
           body = request.body.try(&.gets_to_end) || ""
           parsed = JSON.parse(body)
-          parsed["model"].as_s.should eq("claude-sonnet-4-5-20251101")
+          parsed["model"].as_s.should eq("claude-sonnet-4-6")
           parsed["messages"].as_a.size.should eq(1)
           parsed["max_tokens"].as_i.should eq(256)
 
