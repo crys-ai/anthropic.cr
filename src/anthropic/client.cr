@@ -53,6 +53,10 @@ class Anthropic::Client
 
       response
     end
+  rescue ex : IO::TimeoutError
+    raise TimeoutError.new("Request timed out: #{ex.message}")
+  rescue ex : IO::Error | Socket::Error
+    raise ConnectionError.new("Network error: #{ex.message}")
   end
 
   # Streaming POST — yields response with body_io for SSE
@@ -64,15 +68,18 @@ class Anthropic::Client
           error_body = response.body_io.gets_to_end
           raise APIError.from_response(HTTP::Client::Response.new(
             response.status_code,
-            response.status_message,
-            response.headers,
-            error_body,
-            response.version
+            body: error_body,
+            headers: response.headers,
+            version: response.version
           ))
         end
         block.call(response)
       end
     end
+  rescue ex : IO::TimeoutError
+    raise TimeoutError.new("Stream timed out: #{ex.message}")
+  rescue ex : IO::Error | Socket::Error
+    raise ConnectionError.new("Network error during stream: #{ex.message}")
   end
 
   # Checkout a connection from pool, yield, auto-return
@@ -88,4 +95,12 @@ class Anthropic::Client
       "Content-Type"      => "application/json",
     }
   end
+end
+
+# Network error wrapper for connection issues
+class Anthropic::ConnectionError < Anthropic::Error
+end
+
+# Network error wrapper for timeouts (distinct from 408 timeout from API)
+class Anthropic::TimeoutError < Anthropic::ConnectionError
 end

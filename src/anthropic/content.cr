@@ -43,4 +43,5 @@ end
 alias Anthropic::ContentBlock = Anthropic::Content::Block(Anthropic::Content::TextData) |
                                 Anthropic::Content::Block(Anthropic::Content::ImageData) |
                                 Anthropic::Content::Block(Anthropic::Content::ToolUseData) |
-                                Anthropic::Content::Block(Anthropic::Content::ToolResultData)
+                                Anthropic::Content::Block(Anthropic::Content::ToolResultData) |
+                                Anthropic::Content::Block(Anthropic::Content::UnknownData)

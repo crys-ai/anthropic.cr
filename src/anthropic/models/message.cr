@@ -69,82 +69,41 @@ struct Anthropic::Message
 
   # Parses a single content block from a JSON object.
   protected def self.parse_content_block(pull : JSON::PullParser) : ContentBlock
-    block_type = ""
-    block_text = ""
-    source_media_type = ""
-    source_data = ""
-    block_id = ""
-    block_name = ""
-    block_input = JSON::Any.new(nil)
-    tool_use_id = ""
-    is_error = false
+    # Peek at the type first via JSON::Any to decide parsing strategy
+    block_json = JSON::Any.new(pull)
+    block_type = block_json["type"]?.try(&.as_s) || ""
 
-    pull.read_object do |block_key|
-      case block_key
-      when "type" then block_type = pull.read_string
-      when "text" then block_text = pull.read_string
-      when "source"
-        parse_source(pull) do |media_type, data|
-          source_media_type = media_type
-          source_data = data
-        end
-      when "id"          then block_id = pull.read_string
-      when "name"        then block_name = pull.read_string
-      when "input"       then block_input = JSON::Any.new(pull)
-      when "tool_use_id" then tool_use_id = pull.read_string
-      when "content"     then block_text = parse_tool_result_content(pull)
-      when "is_error"    then is_error = pull.read_bool
-      else                    pull.skip
-      end
-    end
-
-    build_content_block(block_type, block_text, source_media_type, source_data, block_id, block_name, block_input, tool_use_id, is_error)
-  end
-
-  # Parses the "source" sub-object inside an image content block.
-  protected def self.parse_source(pull : JSON::PullParser, &) : Nil
-    media_type = ""
-    data = ""
-    pull.read_object do |source_key|
-      case source_key
-      when "media_type" then media_type = pull.read_string
-      when "data"       then data = pull.read_string
-      else                   pull.skip
-      end
-    end
-    yield media_type, data
-  end
-
-  # Parses tool_result content — either a string or an array of content blocks.
-  # When array, extracts text from text blocks and joins.
-  protected def self.parse_tool_result_content(pull : JSON::PullParser) : String
-    if pull.kind.string?
-      pull.read_string
+    # For known types, re-parse with field extraction
+    case block_type
+    when "text", "image", "tool_use", "tool_result"
+      parse_known_content_block(block_type, block_json)
     else
-      parts = [] of String
-      pull.read_array do
-        block = JSON::Any.new(pull)
-        if block["type"]?.try(&.as_s) == "text"
-          parts << block["text"].as_s
-        end
-      end
-      parts.join
+      Content::Block.new(Content::UnknownData.new(block_type, block_json))
     end
   end
 
-  # Builds the appropriate ContentBlock from parsed fields.
-  protected def self.build_content_block(
-    type : String, text : String,
-    source_media_type : String, source_data : String,
-    id : String, name : String, input : JSON::Any,
-    tool_use_id : String, is_error : Bool,
-  ) : ContentBlock
+  # Parses a known content block type from its JSON representation.
+  protected def self.parse_known_content_block(type : String, json : JSON::Any) : ContentBlock
     case type
-    when "text"        then Content::Block.new(Content::TextData.new(text))
-    when "image"       then Content::Block.new(Content::ImageData.new(source_media_type, source_data))
-    when "tool_use"    then Content::Block.new(Content::ToolUseData.new(id, name, input))
-    when "tool_result" then Content::Block.new(Content::ToolResultData.new(tool_use_id, text, is_error))
-    else                    raise ArgumentError.new("Unknown content block type: #{type}")
+    when "text"
+      Content::Block.new(Content::TextData.new(json["text"].as_s))
+    when "image"
+      source = json["source"]
+      Content::Block.new(Content::ImageData.new(source["media_type"].as_s, source["data"].as_s))
+    when "tool_use"
+      Content::Block.new(Content::ToolUseData.new(json["id"].as_s, json["name"].as_s, json["input"]))
+    when "tool_result"
+      content = json["content"]?
+      text = case content
+             when .nil?  then ""
+             when .as_s? then content.as_s
+             else
+               # Array of content blocks - extract text
+               content.as_a.compact_map { |b| b["text"]?.try(&.as_s) if b["type"]?.try(&.as_s) == "text" }.join
+             end
+      Content::Block.new(Content::ToolResultData.new(json["tool_use_id"].as_s, text, json["is_error"]?.try(&.as_bool) || false))
+    else
+      Content::Block.new(Content::UnknownData.new(type, json))
     end
   end
 end

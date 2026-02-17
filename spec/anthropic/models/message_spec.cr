@@ -112,5 +112,33 @@ describe Anthropic::Message do
       blocks.size.should eq(1)
       blocks.first.type.should eq(Anthropic::Content::Type::ToolResult)
     end
+
+    it "parses unknown content block types without crashing" do
+      json = %({"role":"assistant","content":[{"type":"thinking","thinking":"I need to...","signature":"abc123"}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+      block = blocks.first
+      block.data.should be_a(Anthropic::Content::UnknownData)
+      unknown = block.data.as(Anthropic::Content::UnknownData)
+      unknown.type_string.should eq("thinking")
+      unknown.raw["thinking"].as_s.should eq("I need to...")
+    end
+
+    it "parses mixed known and unknown content blocks" do
+      json = %({"role":"assistant","content":[{"type":"text","text":"Hello"},{"type":"server_tool_use","id":"st_1","name":"web_search","input":{"q":"test"}}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(2)
+      blocks[0].data.should be_a(Anthropic::Content::TextData)
+      blocks[1].data.should be_a(Anthropic::Content::UnknownData)
+    end
+
+    it "parses tool_result with array content" do
+      json = %({"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_1","content":[{"type":"text","text":"result"}],"is_error":false}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+    end
   end
 end

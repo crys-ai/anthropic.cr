@@ -39,6 +39,7 @@ require "./anthropic/content/text_data"
 require "./anthropic/content/image_data"
 require "./anthropic/content/tool_use_data"
 require "./anthropic/content/tool_result_data"
+require "./anthropic/content/unknown_data"
 require "./anthropic/content"
 
 # Models (order matters - dependencies first)

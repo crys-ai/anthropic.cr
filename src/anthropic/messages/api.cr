@@ -10,17 +10,7 @@ class Anthropic::Messages::API
   end
 
   def create(
-    model : Model,
-    messages : Array(Message),
-    max_tokens : Int32,
-    **options,
-  ) : Response
-    request = Request.new(model, messages, max_tokens, **options)
-    create(request)
-  end
-
-  def create(
-    model : String,
+    model : Model | String,
     messages : Array(Message),
     max_tokens : Int32,
     **options,
@@ -44,18 +34,7 @@ class Anthropic::Messages::API
   end
 
   def stream(
-    model : Model,
-    messages : Array(Message),
-    max_tokens : Int32,
-    **options,
-    &block : StreamEvent ->
-  ) : Nil
-    request = Request.new(model, messages, max_tokens, **options)
-    stream(request, &block)
-  end
-
-  def stream(
-    model : String,
+    model : Model | String,
     messages : Array(Message),
     max_tokens : Int32,
     **options,

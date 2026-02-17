@@ -95,6 +95,66 @@ module TestHelpers
   def self.test_client(api_key : String = "sk-ant-test-key") : Anthropic::Client
     Anthropic::Client.new(api_key: api_key)
   end
+
+  # Sample SSE stream response for testing.
+  # Builds a properly-formatted SSE string with precise control over blank line separators.
+  def self.stream_sse(text_chunks : Array(String) = ["Hello", " world"]) : String
+    String.build do |io|
+      io << "event: message_start\n"
+      io << "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-123\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-5-20250929\",\"stop_reason\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n"
+      io << "\n"
+
+      io << "event: content_block_start\n"
+      io << "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n"
+      io << "\n"
+
+      text_chunks.each do |chunk|
+        io << "event: content_block_delta\n"
+        io << "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":" << chunk.to_json << "}}\n"
+        io << "\n"
+      end
+
+      io << "event: content_block_stop\n"
+      io << "data: {\"type\":\"content_block_stop\",\"index\":0}\n"
+      io << "\n"
+
+      io << "event: message_delta\n"
+      io << "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":10,\"output_tokens\":" << text_chunks.join.size << "}}\n"
+      io << "\n"
+
+      io << "event: message_stop\n"
+      io << "data: {\"type\":\"message_stop\"}\n"
+      io << "\n"
+    end
+  end
+
+  # Stubs a streaming POST to the messages API.
+  # Uses WebMock's body_io support to simulate SSE streaming.
+  def self.stub_stream(text_chunks : Array(String) = ["Hello", " world"]) : Nil
+    sse = stream_sse(text_chunks)
+
+    WebMock.stub(:post, API_URL).to_return(
+      body_io: IO::Memory.new(sse),
+      status: 200,
+      headers: {
+        "Content-Type"  => "text/event-stream",
+        "Cache-Control" => "no-cache",
+        "Connection"    => "keep-alive",
+      },
+    )
+  end
+
+  # Stubs an error during streaming (e.g., 529 overload).
+  # Uses body_io so post_stream can read the error response.
+  def self.stub_stream_error(status : Int32, type : String, message : String) : Nil
+    body = error_json(type, message)
+
+    WebMock.stub(:post, API_URL).to_return(
+      body_io: IO::Memory.new(body),
+      status: status,
+      headers: {"Content-Type" => "application/json"},
+    )
+  end
 end
 
 # Test implementation of Data protocol for spec purposes.
