@@ -10,7 +10,7 @@ struct Anthropic::Messages::Response
 
   getter id : String
   getter type : String
-  getter role : Message::Role
+  getter role : String
   getter content : Array(ResponseContentBlock)
   getter model : String
   getter stop_reason : StopReason?
@@ -20,7 +20,7 @@ struct Anthropic::Messages::Response
   def initialize(
     @id : String,
     @type : String,
-    @role : Message::Role,
+    @role : String,
     @content : Array(ResponseContentBlock),
     @model : String,
     @stop_reason : StopReason?,
@@ -32,7 +32,7 @@ struct Anthropic::Messages::Response
   def self.new(pull : JSON::PullParser) : Response
     id = ""
     type = ""
-    role = Message::Role::Assistant
+    role = "assistant"
     content = [] of ResponseContentBlock
     model = ""
     stop_reason : StopReason? = nil
@@ -43,7 +43,7 @@ struct Anthropic::Messages::Response
       case key
       when "id"            then id = pull.read_string
       when "type"          then type = pull.read_string
-      when "role"          then role = Message::Role.parse(pull.read_string)
+      when "role"          then role = pull.read_string
       when "content"       then content = parse_content(pull)
       when "model"         then model = pull.read_string
       when "stop_reason"   then stop_reason = parse_stop_reason(pull)
@@ -66,11 +66,18 @@ struct Anthropic::Messages::Response
     content.select(ResponseToolUseBlock)
   end
 
+  # Returns a typed enum for the role if it's a known value.
+  # Returns nil for unknown/future role values (forward compatibility).
+  # Case-insensitive: handles "assistant", "Assistant", etc.
+  def role_enum : Anthropic::Message::Role?
+    Anthropic::Message::Role.parse?(@role)
+  end
+
   def to_json(json : JSON::Builder) : Nil
     json.object do
       json.field "id", @id
       json.field "type", @type
-      json.field "role" { Converters::RoleConverter.to_json(@role, json) }
+      json.field "role", @role
       json.field "content", @content
       json.field "model", @model
       json.field "stop_reason" { Converters::StopReasonConverter.to_json(@stop_reason, json) }
@@ -95,6 +102,9 @@ struct Anthropic::Messages::Response
   end
 
   private def self.parse_stop_reason(pull : JSON::PullParser) : StopReason?
-    pull.read_null_or { StopReason.parse(pull.read_string) }
+    pull.read_null_or do
+      str = pull.read_string
+      StopReason.parse?(str)
+    end
   end
 end

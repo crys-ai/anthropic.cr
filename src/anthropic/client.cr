@@ -3,39 +3,45 @@ require "db/pool"
 require "uri"
 
 class Anthropic::Client
-  BASE_URL          = "https://api.anthropic.com"
-  API_VERSION       = "2023-06-01"
-  DEFAULT_TIMEOUT   = 120.seconds
-  DEFAULT_POOL_SIZE = 10
-
   getter api_key : String
   getter base_url : String
   getter timeout : Time::Span
+  getter config : Configuration
 
-  def initialize(
-    api_key : String? = nil,
-    @base_url : String = BASE_URL,
-    @timeout : Time::Span = DEFAULT_TIMEOUT,
-    max_idle_pool_size : Int32 = DEFAULT_POOL_SIZE,
-  )
-    @api_key = api_key || ENV["ANTHROPIC_API_KEY"]? || raise ArgumentError.new(
-      "API key required. Pass api_key: or set ANTHROPIC_API_KEY env var."
-    )
+  # Initialize from a Configuration struct.
+  def initialize(@config : Configuration)
+    @api_key = @config.api_key
+    @base_url = @config.base_url
+    @timeout = @config.timeout
 
     uri = URI.parse(@base_url)
 
-    # DB::Pool.new with DB::Pool::Options
+    max_idle = @config.max_pool_size
     options = DB::Pool::Options.new(
       initial_pool_size: 1,
-      max_idle_pool_size: max_idle_pool_size,
-      max_pool_size: max_idle_pool_size * 2
+      max_idle_pool_size: max_idle,
+      max_pool_size: max_idle * 2
     )
     @pool = DB::Pool(HTTP::Client).new(options) do
-      # Create base client - auth headers added per-request (no before_request hook in stdlib)
       client = HTTP::Client.new(uri)
       client.read_timeout = @timeout
       client
     end
+  end
+
+  # Backward-compatible initialize with individual parameters.
+  def initialize(
+    api_key : String? = nil,
+    base_url : String = ENV["ANTHROPIC_BASE_URL"]? || Configuration::DEFAULT_BASE_URL,
+    timeout : Time::Span = Configuration::DEFAULT_TIMEOUT,
+    max_idle_pool_size : Int32 = Configuration::DEFAULT_POOL_SIZE,
+  )
+    initialize(Configuration.new(
+      api_key: api_key,
+      base_url: base_url,
+      timeout: timeout,
+      max_pool_size: max_idle_pool_size,
+    ))
   end
 
   def messages : Messages::API
@@ -64,8 +70,13 @@ class Anthropic::Client
     http do |client|
       client.post(path, headers: auth_headers, body: body) do |response|
         if response.status_code >= 400
-          # For error responses, read full body before raising
-          error_body = response.body_io.gets_to_end
+          # For error responses, read full body before raising.
+          # body_io may raise if unavailable; fall back to body string.
+          error_body = begin
+            response.body_io.gets_to_end
+          rescue NilAssertionError | IO::Error
+            response.body
+          end
           raise APIError.from_response(HTTP::Client::Response.new(
             response.status_code,
             body: error_body,
@@ -87,20 +98,13 @@ class Anthropic::Client
     @pool.checkout { |http_client| yield http_client }
   end
 
-  # Auth headers - added per-request (HTTP::Client has no before_request hook)
+  # Auth headers - added per-request, uses configurable api_version
   private def auth_headers : HTTP::Headers
     HTTP::Headers{
       "x-api-key"         => @api_key,
-      "anthropic-version" => API_VERSION,
+      "Authorization"     => "Bearer #{@api_key}",
+      "anthropic-version" => @config.api_version,
       "Content-Type"      => "application/json",
     }
   end
-end
-
-# Network error wrapper for connection issues
-class Anthropic::ConnectionError < Anthropic::Error
-end
-
-# Network error wrapper for timeouts (distinct from 408 timeout from API)
-class Anthropic::TimeoutError < Anthropic::ConnectionError
 end

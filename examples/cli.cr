@@ -14,7 +14,7 @@ parser = OptionParser.new do |opts|
     begin
       model = Anthropic::Model.from_friendly(value)
     rescue ArgumentError
-      raise ArgumentError.new("Invalid model '#{value}'. Use opus, sonnet, haiku, or enum e.g. claude_opus_4_6")
+      raise ArgumentError.new("Invalid model '#{value}'. Use opus, sonnet, haiku, or enum e.g. claude_opus_4_6, claude_sonnet_4_6")
     end
   end
 

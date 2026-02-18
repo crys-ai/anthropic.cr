@@ -6,7 +6,7 @@ describe Anthropic::Messages::Response do
       response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
       response.id.should eq("msg_01XFDUDYJgAACzvnptvVoYEL")
       response.type.should eq("message")
-      response.role.should eq(Anthropic::Message::Role::Assistant)
+      response.role.should eq("assistant")
       response.model.should eq("claude-sonnet-4-20250514")
       response.stop_reason.should eq(Anthropic::Messages::Response::StopReason::EndTurn)
       response.stop_sequence.should be_nil
@@ -284,6 +284,72 @@ describe Anthropic::Messages::Response do
       json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("stop_reason": "end_turn"), %("stop_reason": null))
       response = Anthropic::Messages::Response.from_json(json)
       response.stop_reason.should be_nil
+    end
+
+    it "returns nil for unknown stop_reason values" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("stop_reason": "end_turn"), %("stop_reason": "future_stop_reason"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.stop_reason.should be_nil
+    end
+
+    it "still parses all known stop_reason values" do
+      known_reasons = ["end_turn", "max_tokens", "stop_sequence", "tool_use"]
+      expected = [
+        Anthropic::Messages::Response::StopReason::EndTurn,
+        Anthropic::Messages::Response::StopReason::MaxTokens,
+        Anthropic::Messages::Response::StopReason::StopSequence,
+        Anthropic::Messages::Response::StopReason::ToolUse,
+      ]
+
+      known_reasons.each_with_index do |reason, i|
+        json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("stop_reason": "end_turn"), %("stop_reason": "#{reason}"))
+        response = Anthropic::Messages::Response.from_json(json)
+        response.stop_reason.should eq(expected[i])
+      end
+    end
+  end
+
+  describe "role" do
+    it "parses assistant role" do
+      response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
+      response.role.should eq("assistant")
+    end
+
+    it "handles unknown role values without crashing" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "future_role"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.role.should eq("future_role")
+    end
+  end
+
+  describe "#role_enum" do
+    it "returns Role::Assistant for assistant role" do
+      response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
+      response.role_enum.should eq(Anthropic::Message::Role::Assistant)
+    end
+
+    it "returns Role::User for user role" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "user"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.role_enum.should eq(Anthropic::Message::Role::User)
+    end
+
+    it "returns nil for unknown role values (forward compatibility)" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "future_role"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.role_enum.should be_nil
+    end
+
+    it "handles case variations for assistant" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "Assistant"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.role_enum.should eq(Anthropic::Message::Role::Assistant)
+    end
+
+    it "handles case variations for user" do
+      json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "USER"))
+      response = Anthropic::Messages::Response.from_json(json)
+      response.role_enum.should eq(Anthropic::Message::Role::User)
     end
   end
 end

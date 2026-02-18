@@ -57,18 +57,21 @@ client = Anthropic::Client.new(
 Type-safe model selection with the `Model` enum:
 
 ```crystal
-Anthropic::Model.opus      # Claude Opus 4.5 (latest)
-Anthropic::Model.sonnet    # Claude Sonnet 4.5 (latest)
-Anthropic::Model.haiku     # Claude Haiku 3.5 (latest)
+Anthropic::Model.opus      # Claude Opus 4.6 (latest)
+Anthropic::Model.sonnet    # Claude Sonnet 4.6 (latest)
+Anthropic::Model.haiku     # Claude Haiku 4.5 (latest)
 
 # Or use specific versions
+Anthropic::Model::ClaudeOpus4_6
+Anthropic::Model::ClaudeSonnet4_6
 Anthropic::Model::ClaudeOpus4_5
 Anthropic::Model::ClaudeSonnet4_5
+Anthropic::Model::ClaudeHaiku4_5
 Anthropic::Model::ClaudeOpus4
 Anthropic::Model::ClaudeSonnet4
-Anthropic::Model::ClaudeSonnet3_5
-Anthropic::Model::ClaudeHaiku3_5
 ```
+
+> **Note:** The `Request` accepts `String | Model` for the model parameter, so custom model strings are also supported.
 
 ## Messages API
 
@@ -123,12 +126,32 @@ response = client.messages.create(
 )
 ```
 
+## Streaming
+
+Stream responses token-by-token using server-sent events (SSE):
+
+```crystal
+client.messages.stream(
+  model: Anthropic::Model.sonnet,
+  messages: [Anthropic::Message.user("Tell me a story")],
+  max_tokens: 1024,
+) do |event|
+  case event
+  when Anthropic::StreamEvent::ContentBlockDelta
+    print event.delta.text if event.delta.text
+  when Anthropic::StreamEvent::MessageStop
+    puts # newline at end
+  end
+end
+```
+
 ## Response
 
 ```crystal
 response.id            # "msg_01XFDUDYJgAACzvnptvVoYEL"
 response.model         # "claude-sonnet-4-5-20251101"
-response.role          # Anthropic::Message::Role::Assistant
+response.role          # "assistant" (String - raw value)
+response.role_enum     # Anthropic::Message::Role::Assistant (typed enum, nil for unknown roles)
 response.stop_reason   # Anthropic::Messages::Response::StopReason::EndTurn
 response.text          # Combined text from all content blocks
 
@@ -137,6 +160,30 @@ response.usage.input_tokens   # 25
 response.usage.output_tokens  # 42
 response.usage.total_tokens   # 67
 ```
+
+The `role` field is a raw string for forward compatibility with future role values. Use `role_enum` for type-safe role checks:
+
+```crystal
+case response.role_enum
+when Anthropic::Message::Role::Assistant
+  # handle assistant response
+when Anthropic::Message::Role::User
+  # handle user message (rare in responses)
+else
+  # future/unknown role - forward compatible
+end
+```
+
+## Forward Compatibility
+
+Unknown content block types from the API (e.g., future additions like `thinking`) are preserved as `UnknownData` rather than causing parse errors. You can inspect them:
+
+```crystal
+block.data.as(Anthropic::Content::UnknownData).type_string  # => "thinking"
+block.data.as(Anthropic::Content::UnknownData).raw           # => JSON::Any
+```
+
+This means your code will not break when Anthropic introduces new content block types.
 
 ## Error Handling
 
@@ -172,7 +219,7 @@ crystal run examples/cli.cr -- -h
 
 # Model values
 # Aliases: opus, sonnet, haiku
-# Enum names: see `--help` output (e.g. claude_opus4_5)
+# Enum names: see `--help` output (e.g. claude_opus4_6, claude_sonnet4_5)
 
 # Invalid input handling
 # Invalid model/option values print "Error: ..." + usage and exit with code 1
@@ -197,6 +244,9 @@ bin/hace all
 # Individual checks
 crystal tool format
 bin/ameba
+crystal spec
+
+# Run all tests including integration (WebMock-mocked end-to-end tests)
 crystal spec
 ```
 

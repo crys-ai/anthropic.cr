@@ -5,10 +5,10 @@ struct Anthropic::Content::ToolResultData
   include Data
 
   getter tool_use_id : String
-  getter content : String
+  getter content : String | Array(JSON::Any)
   getter? is_error : Bool
 
-  def initialize(@tool_use_id : String, @content : String, @is_error : Bool = false)
+  def initialize(@tool_use_id : String, @content : String | Array(JSON::Any), @is_error : Bool = false)
   end
 
   def content_type : Type

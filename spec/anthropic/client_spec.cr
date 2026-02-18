@@ -23,8 +23,10 @@ describe Anthropic::Client do
     end
 
     it "uses default base URL" do
-      client = Anthropic::Client.new(api_key: "sk-ant-test")
-      client.base_url.should eq("https://api.anthropic.com")
+      TestHelpers.with_env("ANTHROPIC_BASE_URL", nil) do
+        client = Anthropic::Client.new(api_key: "sk-ant-test")
+        client.base_url.should eq("https://api.anthropic.com")
+      end
     end
 
     it "allows custom base URL" do
@@ -40,6 +42,45 @@ describe Anthropic::Client do
     it "allows custom timeout" do
       client = Anthropic::Client.new(api_key: "sk-ant-test", timeout: 30.seconds)
       client.timeout.should eq(30.seconds)
+    end
+
+    it "reads ANTHROPIC_BASE_URL from environment" do
+      TestHelpers.with_env("ANTHROPIC_BASE_URL", "https://proxy.example.com") do
+        client = Anthropic::Client.new(api_key: "sk-ant-test")
+        client.base_url.should eq("https://proxy.example.com")
+      end
+    end
+
+    it "accepts a Configuration struct" do
+      config = Anthropic::Configuration.new(
+        api_key: "sk-ant-config-test",
+        base_url: "https://config.example.com",
+        api_version: "2024-06-01",
+        timeout: 60.seconds,
+        max_pool_size: 5,
+      )
+      client = Anthropic::Client.new(config)
+      client.api_key.should eq("sk-ant-config-test")
+      client.base_url.should eq("https://config.example.com")
+      client.timeout.should eq(60.seconds)
+      client.config.api_version.should eq("2024-06-01")
+      client.config.max_pool_size.should eq(5)
+    end
+
+    it "uses config.api_version in auth headers" do
+      TestHelpers.with_env("ANTHROPIC_BASE_URL", nil) do
+        config = Anthropic::Configuration.new(
+          api_key: "sk-ant-test",
+          api_version: "2025-01-01",
+        )
+
+        WebMock.stub(:post, "https://api.anthropic.com/v1/messages")
+          .with(headers: {"anthropic-version" => "2025-01-01"})
+          .to_return(status: 200, body: TestHelpers.response_json)
+
+        client = Anthropic::Client.new(config)
+        client.post("/v1/messages", "{}")
+      end
     end
   end
 
@@ -69,7 +110,7 @@ describe Anthropic::Client do
         .with(headers: {"x-api-key" => "sk-ant-my-key"})
         .to_return(status: 200, body: TestHelpers.response_json)
 
-      client = Anthropic::Client.new(api_key: "sk-ant-my-key")
+      client = Anthropic::Client.new(api_key: "sk-ant-my-key", base_url: "https://api.anthropic.com")
       client.post("/v1/messages", "{}")
     end
 
@@ -213,6 +254,71 @@ describe Anthropic::Client do
           messages: [Anthropic::Message.user("Hi")],
           max_tokens: 100,
         )
+      end
+    end
+  end
+
+  describe "#post_stream error handling" do
+    it "raises OverloadedError on 529 during stream" do
+      TestHelpers.stub_stream_error(529, "overloaded_error", "API overloaded")
+
+      client = TestHelpers.test_client
+      expect_raises(Anthropic::OverloadedError, /overloaded/) do
+        client.post_stream("/v1/messages", "{}") do |_response|
+          # Should not reach here
+          fail "Expected error to be raised"
+        end
+      end
+    end
+
+    it "raises AuthenticationError on 401 during stream" do
+      TestHelpers.stub_stream_error(401, "authentication_error", "Invalid API key")
+
+      client = TestHelpers.test_client
+      expect_raises(Anthropic::AuthenticationError, /Invalid API key/) do
+        client.post_stream("/v1/messages", "{}") do |_response|
+          # Should not reach here
+          fail "Expected error to be raised"
+        end
+      end
+    end
+
+    it "raises RateLimitError on 429 during stream" do
+      TestHelpers.stub_stream_error(429, "rate_limit_error", "Rate limit exceeded")
+
+      client = TestHelpers.test_client
+      expect_raises(Anthropic::RateLimitError, /Rate limit exceeded/) do
+        client.post_stream("/v1/messages", "{}") do |_response|
+          # Should not reach here
+          fail "Expected error to be raised"
+        end
+      end
+    end
+
+    it "handles error response without body_io gracefully" do
+      # Stub an error with a regular body instead of body_io
+      WebMock.stub(:post, TestHelpers::API_URL)
+        .to_return(status: 500, body: "Server error")
+
+      client = TestHelpers.test_client
+      expect_raises(Anthropic::APIError, /Server error/) do
+        client.post_stream("/v1/messages", "{}") do |_response|
+          # Should not reach here
+          fail "Expected error to be raised"
+        end
+      end
+    end
+
+    it "handles malformed error body during stream" do
+      WebMock.stub(:post, TestHelpers::API_URL)
+        .to_return(status: 500, body: "Not JSON", headers: {"Content-Type" => "text/plain"})
+
+      client = TestHelpers.test_client
+      expect_raises(Anthropic::APIError) do
+        client.post_stream("/v1/messages", "{}") do |_response|
+          # Should not reach here
+          fail "Expected error to be raised"
+        end
       end
     end
   end

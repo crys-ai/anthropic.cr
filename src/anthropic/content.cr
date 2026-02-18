@@ -33,8 +33,13 @@ module Anthropic::Content
     Block.new(ToolUseData.new(id, name, input))
   end
 
-  # Creates a tool result content block.
+  # Creates a tool result content block with string content.
   def self.tool_result(tool_use_id : String, content : String, is_error : Bool = false) : Block(ToolResultData)
+    Block.new(ToolResultData.new(tool_use_id, content, is_error))
+  end
+
+  # Creates a tool result content block with array content.
+  def self.tool_result(tool_use_id : String, content : Array(JSON::Any), is_error : Bool = false) : Block(ToolResultData)
     Block.new(ToolResultData.new(tool_use_id, content, is_error))
   end
 end

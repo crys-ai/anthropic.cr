@@ -23,11 +23,15 @@ class Anthropic::APIError < Anthropic::Error
 
   private def self.parse_error_body(body : String) : Hash(String, String)
     parsed = JSON.parse(body)
-    {
-      "type"    => parsed.dig("error", "type").as_s,
-      "message" => parsed.dig("error", "message").as_s,
-    }
-  rescue JSON::ParseException | KeyError
+    if hash = parsed.as_h?
+      error = hash["error"]?
+      type = error.try(&.["type"]?).try(&.as_s?) || "unknown_error"
+      message = error.try(&.["message"]?).try(&.as_s?) || body
+      {"type" => type, "message" => message}
+    else
+      {"type" => "unknown_error", "message" => body}
+    end
+  rescue JSON::ParseException
     {"type" => "unknown_error", "message" => body}
   end
 
@@ -72,4 +76,12 @@ class Anthropic::ConflictError < Anthropic::APIError
 end
 
 class Anthropic::UnprocessableEntityError < Anthropic::APIError
+end
+
+# Network error wrapper for connection issues
+class Anthropic::ConnectionError < Anthropic::Error
+end
+
+# Network error wrapper for timeouts (distinct from 408 timeout from API)
+class Anthropic::TimeoutError < Anthropic::ConnectionError
 end

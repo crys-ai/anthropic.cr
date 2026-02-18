@@ -34,7 +34,7 @@ describe Anthropic::Messages::Request do
         max_tokens: 1024
       )
       json = request.to_json
-      json.should contain(%("model":"claude-sonnet-4-5-20251101"))
+      json.should contain(%("model":"claude-sonnet-4-5-20250929"))
       json.should contain(%("max_tokens":1024))
     end
 
@@ -70,6 +70,72 @@ describe Anthropic::Messages::Request do
     end
   end
 
+  describe "#with_stream" do
+    it "returns a copy with stream set to true" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024
+      )
+
+      stream_request = request.with_stream(true)
+
+      # Original should not be mutated
+      request.stream.should be_nil
+
+      # Copy should have stream set
+      stream_request.stream.should be_true
+    end
+
+    it "returns a copy with stream set to false" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        stream: true
+      )
+
+      stream_request = request.with_stream(false)
+
+      # Original should not be mutated
+      request.stream.should be_true
+
+      # Copy should have stream set to false
+      stream_request.stream.should be_false
+    end
+
+    it "serializes with stream true when using with_stream" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024
+      )
+
+      stream_request = request.with_stream(true)
+      JSON.parse(stream_request.to_json)["stream"].as_bool.should be_true
+    end
+
+    it "copies all other fields correctly" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.opus,
+        messages: [Anthropic::Message.user("Test")],
+        max_tokens: 512,
+        system: "Be helpful",
+        temperature: 0.5,
+        top_p: 0.9
+      )
+
+      stream_request = request.with_stream(true)
+
+      stream_request.model.should eq(request.model)
+      stream_request.messages.should eq(request.messages)
+      stream_request.max_tokens.should eq(request.max_tokens)
+      stream_request.system.should eq(request.system)
+      stream_request.temperature.should eq(request.temperature)
+      stream_request.top_p.should eq(request.top_p)
+    end
+  end
+
   describe "custom model strings" do
     it "accepts custom model string" do
       request = Anthropic::Messages::Request.new(
@@ -101,12 +167,12 @@ describe Anthropic::Messages::Request do
 
     it "preserves Model enum when using enum constructor" do
       request = Anthropic::Messages::Request.new(
-        model: Anthropic::Model::ClaudeOpus4_5,
+        model: Anthropic::Model::ClaudeOpus4_6,
         messages: [Anthropic::Message.user("Hello!")],
         max_tokens: 1024
       )
       request.model.should be_a(Anthropic::Model)
-      request.model.should eq(Anthropic::Model::ClaudeOpus4_5)
+      request.model.should eq(Anthropic::Model::ClaudeOpus4_6)
     end
 
     it "both constructors work correctly" do
@@ -123,6 +189,134 @@ describe Anthropic::Messages::Request do
 
       enum_request.model.should be_a(Anthropic::Model)
       string_request.model.should be_a(String)
+    end
+  end
+
+  describe "validation" do
+    it "raises on max_tokens = 0" do
+      expect_raises(ArgumentError, "max_tokens must be positive") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: 0
+        )
+      end
+    end
+
+    it "raises on negative max_tokens" do
+      expect_raises(ArgumentError, "max_tokens must be positive") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: -1
+        )
+      end
+    end
+
+    it "raises on empty messages array" do
+      expect_raises(ArgumentError, "messages must not be empty") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [] of Anthropic::Message,
+          max_tokens: 1024
+        )
+      end
+    end
+
+    it "raises on temperature > 1.0" do
+      expect_raises(ArgumentError, "temperature must be between 0.0 and 1.0") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: 1024,
+          temperature: 1.5
+        )
+      end
+    end
+
+    it "raises on temperature < 0.0" do
+      expect_raises(ArgumentError, "temperature must be between 0.0 and 1.0") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: 1024,
+          temperature: -0.1
+        )
+      end
+    end
+
+    it "raises on top_p > 1.0" do
+      expect_raises(ArgumentError, "top_p must be between 0.0 and 1.0") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: 1024,
+          top_p: 1.5
+        )
+      end
+    end
+
+    it "raises on top_p < 0.0" do
+      expect_raises(ArgumentError, "top_p must be between 0.0 and 1.0") do
+        Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hello!")],
+          max_tokens: 1024,
+          top_p: -0.1
+        )
+      end
+    end
+
+    it "accepts temperature = 0.0" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        temperature: 0.0
+      )
+      request.temperature.should eq(0.0)
+    end
+
+    it "accepts temperature = 1.0" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        temperature: 1.0
+      )
+      request.temperature.should eq(1.0)
+    end
+
+    it "accepts top_p = 0.0" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        top_p: 0.0
+      )
+      request.top_p.should eq(0.0)
+    end
+
+    it "accepts top_p = 1.0" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        top_p: 1.0
+      )
+      request.top_p.should eq(1.0)
+    end
+
+    it "accepts valid request with all params" do
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hello!")],
+        max_tokens: 1024,
+        temperature: 0.7,
+        top_p: 0.9
+      )
+      request.temperature.should eq(0.7)
+      request.top_p.should eq(0.9)
     end
   end
 end

@@ -277,6 +277,29 @@ describe Anthropic::Messages::API do
       client.messages.stream(request) { |_| }
     end
 
+    it "does not mutate the caller's request object" do
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        body_io: IO::Memory.new(TestHelpers.stream_sse),
+        status: 200,
+        headers: {"Content-Type" => "text/event-stream"},
+      )
+
+      client = TestHelpers.test_client
+      request = Anthropic::Messages::Request.new(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      )
+
+      # Verify stream is nil before
+      request.stream.should be_nil
+
+      client.messages.stream(request) { |_| }
+
+      # Verify stream is still nil after (not mutated)
+      request.stream.should be_nil
+    end
+
     it "handles empty stream" do
       TestHelpers.stub_stream([] of String)
 

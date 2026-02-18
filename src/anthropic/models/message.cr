@@ -94,14 +94,13 @@ struct Anthropic::Message
       Content::Block.new(Content::ToolUseData.new(json["id"].as_s, json["name"].as_s, json["input"]))
     when "tool_result"
       content = json["content"]?
-      text = case content
-             when .nil?  then ""
-             when .as_s? then content.as_s
-             else
-               # Array of content blocks - extract text
-               content.as_a.compact_map { |b| b["text"]?.try(&.as_s) if b["type"]?.try(&.as_s) == "text" }.join
-             end
-      Content::Block.new(Content::ToolResultData.new(json["tool_use_id"].as_s, text, json["is_error"]?.try(&.as_bool) || false))
+      parsed_content : String | Array(JSON::Any) = case content
+      when .nil?  then ""
+      when .as_s? then content.as_s
+      else
+        content.as_a
+      end
+      Content::Block.new(Content::ToolResultData.new(json["tool_use_id"].as_s, parsed_content, json["is_error"]?.try(&.as_bool) || false))
     else
       Content::Block.new(Content::UnknownData.new(type, json))
     end

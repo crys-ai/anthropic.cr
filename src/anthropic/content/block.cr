@@ -13,10 +13,18 @@ struct Anthropic::Content::Block(T)
   end
 
   def to_json(json : JSON::Builder) : Nil
-    json.object do
-      json.field "type", type
-      data.to_content_json(json)
-    end
+    {% if T == Anthropic::Content::UnknownData %}
+      # UnknownData has its own complete serialization that preserves the
+      # original type string. We delegate directly to avoid using the
+      # `content_type` fallback (which returns Type::Text for protocol
+      # compatibility, not the actual unknown type).
+      data.to_json(json)
+    {% else %}
+      json.object do
+        json.field "type", type
+        data.to_content_json(json)
+      end
+    {% end %}
   end
 
   def to_json : String

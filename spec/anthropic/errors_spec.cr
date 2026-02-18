@@ -130,3 +130,149 @@ describe Anthropic::UnprocessableEntityError do
     error.status_code.should eq(422)
   end
 end
+
+describe Anthropic::ConnectionError do
+  it "inherits from Error" do
+    error = Anthropic::ConnectionError.new("Network error")
+    error.should be_a(Anthropic::Error)
+  end
+
+  it "preserves error message" do
+    error = Anthropic::ConnectionError.new("Connection refused")
+    error.message.should eq("Connection refused")
+  end
+end
+
+describe Anthropic::TimeoutError do
+  it "inherits from ConnectionError" do
+    error = Anthropic::TimeoutError.new("Request timed out")
+    error.should be_a(Anthropic::ConnectionError)
+  end
+
+  it "preserves error message" do
+    error = Anthropic::TimeoutError.new("Connection timeout")
+    error.message.should eq("Connection timeout")
+  end
+end
+
+describe Anthropic::APIError, "#parse_error_body" do
+  it "parses valid error body correctly" do
+    response = HTTP::Client::Response.new(400, body: %({"error":{"type":"invalid_request_error","message":"Bad input"}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("invalid_request_error")
+    error.error_message.should eq("Bad input")
+  end
+
+  it "handles malformed JSON body" do
+    response = HTTP::Client::Response.new(500, body: "Internal Server Error")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("Internal Server Error")
+  end
+
+  it "handles JSON without error key" do
+    response = HTTP::Client::Response.new(400, body: %({"status":"error","detail":"Something went wrong"}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should contain("Something went wrong")
+  end
+
+  it "handles error with non-string type field" do
+    response = HTTP::Client::Response.new(400, body: %({"error":{"type":123,"message":"Bad input"}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("Bad input")
+  end
+
+  it "handles error with non-string message field" do
+    response = HTTP::Client::Response.new(400, body: %({"error":{"type":"invalid_request_error","message":456}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("invalid_request_error")
+    error.error_message.should contain("invalid_request_error")
+  end
+
+  it "handles error with null type field" do
+    response = HTTP::Client::Response.new(400, body: %({"error":{"type":null,"message":"Bad input"}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("Bad input")
+  end
+
+  it "handles error with null message field" do
+    response = HTTP::Client::Response.new(400, body: %({"error":{"type":"invalid_request_error","message":null}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("invalid_request_error")
+    error.error_message.should contain("invalid_request_error")
+  end
+
+  it "handles completely empty body" do
+    response = HTTP::Client::Response.new(500, body: "")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("")
+  end
+
+  it "handles missing error object entirely" do
+    response = HTTP::Client::Response.new(400, body: %({"data":{"some":"value"}}))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should contain("data")
+  end
+
+  it "handles JSON number scalar body" do
+    response = HTTP::Client::Response.new(500, body: "123")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("123")
+  end
+
+  it "handles JSON string scalar body" do
+    response = HTTP::Client::Response.new(500, body: %("just a string"))
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq(%("just a string"))
+  end
+
+  it "handles JSON array body" do
+    response = HTTP::Client::Response.new(500, body: "[1,2,3]")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("[1,2,3]")
+  end
+
+  it "handles JSON boolean true body" do
+    response = HTTP::Client::Response.new(500, body: "true")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("true")
+  end
+
+  it "handles JSON boolean false body" do
+    response = HTTP::Client::Response.new(500, body: "false")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("false")
+  end
+
+  it "handles JSON null body" do
+    response = HTTP::Client::Response.new(500, body: "null")
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("null")
+  end
+end

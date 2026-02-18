@@ -15,23 +15,32 @@ describe Anthropic::Model do
     end
 
     it "converts ClaudeSonnet4_5" do
-      Anthropic::Model::ClaudeSonnet4_5.to_api_string.should eq("claude-sonnet-4-5-20251101")
+      Anthropic::Model::ClaudeSonnet4_5.to_api_string.should eq("claude-sonnet-4-5-20250929")
+    end
+
+    it "converts ClaudeHaiku4_5" do
+      Anthropic::Model::ClaudeHaiku4_5.to_api_string.should eq("claude-haiku-4-5-20251001")
     end
 
     it "converts ClaudeOpus4" do
-      Anthropic::Model::ClaudeOpus4.to_api_string.should eq("claude-opus-4-20251101")
+      Anthropic::Model::ClaudeOpus4.to_api_string.should eq("claude-opus-4-20250514")
     end
 
     it "converts ClaudeSonnet4" do
-      Anthropic::Model::ClaudeSonnet4.to_api_string.should eq("claude-sonnet-4-20251101")
+      Anthropic::Model::ClaudeSonnet4.to_api_string.should eq("claude-sonnet-4-20250514")
+    end
+  end
+
+  describe "api_strings mapping" do
+    it "has a unique API string for each model" do
+      api_strings = Anthropic::Model.api_strings.values
+      api_strings.uniq.size.should eq(api_strings.size)
     end
 
-    it "converts ClaudeSonnet3_5" do
-      Anthropic::Model::ClaudeSonnet3_5.to_api_string.should eq("claude-3-5-sonnet-20260101")
-    end
-
-    it "converts ClaudeHaiku3_5" do
-      Anthropic::Model::ClaudeHaiku3_5.to_api_string.should eq("claude-3-5-haiku-20260101")
+    it "has a mapping for every enum value" do
+      Anthropic::Model.each do |model|
+        Anthropic::Model.api_strings.has_key?(model).should be_true
+      end
     end
   end
 
@@ -44,8 +53,34 @@ describe Anthropic::Model do
       Anthropic::Model.sonnet.should eq(Anthropic::Model::ClaudeSonnet4_6)
     end
 
-    it ".haiku returns ClaudeHaiku3_5" do
-      Anthropic::Model.haiku.should eq(Anthropic::Model::ClaudeHaiku3_5)
+    it ".haiku returns ClaudeHaiku4_5" do
+      Anthropic::Model.haiku.should eq(Anthropic::Model::ClaudeHaiku4_5)
+    end
+  end
+
+  describe "alias resolution" do
+    it "opus resolves to ClaudeOpus4_6" do
+      Anthropic::Model.opus.should eq(Anthropic::Model::ClaudeOpus4_6)
+    end
+
+    it "sonnet resolves to ClaudeSonnet4_6" do
+      Anthropic::Model.sonnet.should eq(Anthropic::Model::ClaudeSonnet4_6)
+    end
+
+    it "haiku resolves to ClaudeHaiku4_5" do
+      Anthropic::Model.haiku.should eq(Anthropic::Model::ClaudeHaiku4_5)
+    end
+
+    it "opus alias maps to correct API string" do
+      Anthropic::Model.opus.to_api_string.should eq("claude-opus-4-6")
+    end
+
+    it "sonnet alias maps to correct API string" do
+      Anthropic::Model.sonnet.to_api_string.should eq("claude-sonnet-4-6")
+    end
+
+    it "haiku alias maps to correct API string" do
+      Anthropic::Model.haiku.to_api_string.should eq("claude-haiku-4-5-20251001")
     end
   end
 
@@ -76,18 +111,18 @@ describe Anthropic::Model do
     end
 
     it "parses 'haiku' alias" do
-      Anthropic::Model.from_friendly("haiku").should eq(Anthropic::Model::ClaudeHaiku3_5)
+      Anthropic::Model.from_friendly("haiku").should eq(Anthropic::Model::ClaudeHaiku4_5)
     end
 
     it "is case-insensitive for aliases" do
       Anthropic::Model.from_friendly("OPUS").should eq(Anthropic::Model::ClaudeOpus4_6)
       Anthropic::Model.from_friendly("Sonnet").should eq(Anthropic::Model::ClaudeSonnet4_6)
-      Anthropic::Model.from_friendly("HAIKU").should eq(Anthropic::Model::ClaudeHaiku3_5)
+      Anthropic::Model.from_friendly("HAIKU").should eq(Anthropic::Model::ClaudeHaiku4_5)
     end
 
     it "falls back to Model.parse for enum-style names" do
       Anthropic::Model.from_friendly("claude_opus_4_6").should eq(Anthropic::Model::ClaudeOpus4_6)
-      Anthropic::Model.from_friendly("ClaudeSonnet4_6").should eq(Anthropic::Model::ClaudeSonnet4_6)
+      Anthropic::Model.from_friendly("ClaudeSonnet4_5").should eq(Anthropic::Model::ClaudeSonnet4_5)
     end
 
     it "raises on unknown model" do

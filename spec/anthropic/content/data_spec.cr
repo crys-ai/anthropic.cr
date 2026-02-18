@@ -89,4 +89,19 @@ describe Anthropic::Content::Data do
       data.content_type.should eq(Anthropic::Content::Type::ToolResult)
     end
   end
+
+  describe "UnknownData implements Data" do
+    it "includes Data module" do
+      raw = JSON.parse(%({"type":"thinking","thinking":"test"}))
+      data = Anthropic::Content::UnknownData.new("thinking", raw)
+      data.should be_a(Anthropic::Content::Data)
+    end
+
+    it "implements content_type with Type::Text fallback" do
+      raw = JSON.parse(%({"type":"thinking","thinking":"test"}))
+      data = Anthropic::Content::UnknownData.new("thinking", raw)
+      # Returns Type::Text as safe protocol default (not used for serialization)
+      data.content_type.should eq(Anthropic::Content::Type::Text)
+    end
+  end
 end

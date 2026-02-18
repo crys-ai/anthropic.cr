@@ -30,6 +30,7 @@ end
 # Core
 require "./anthropic/version"
 require "./anthropic/errors"
+require "./anthropic/configuration"
 
 # Content (generic content blocks for requests)
 require "./anthropic/content/type"

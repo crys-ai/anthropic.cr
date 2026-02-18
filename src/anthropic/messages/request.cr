@@ -22,6 +22,14 @@ struct Anthropic::Messages::Request
     @stop_sequences : Array(String)? = nil,
     @stream : Bool? = nil,
   )
+    raise ArgumentError.new("max_tokens must be positive, got #{@max_tokens}") if @max_tokens <= 0
+    raise ArgumentError.new("messages must not be empty") if @messages.empty?
+    if temp = @temperature
+      raise ArgumentError.new("temperature must be between 0.0 and 1.0, got #{temp}") unless (0.0..1.0).includes?(temp)
+    end
+    if tp = @top_p
+      raise ArgumentError.new("top_p must be between 0.0 and 1.0, got #{tp}") unless (0.0..1.0).includes?(tp)
+    end
   end
 
   def to_json(json : JSON::Builder) : Nil
@@ -41,5 +49,21 @@ struct Anthropic::Messages::Request
       json.field "stop_sequences", @stop_sequences if @stop_sequences
       json.field "stream", @stream unless @stream.nil?
     end
+  end
+
+  # Returns a copy of this request with the stream flag set.
+  # Does not mutate the original request.
+  def with_stream(stream : Bool) : Request
+    Request.new(
+      model: @model,
+      messages: @messages,
+      max_tokens: @max_tokens,
+      system: @system,
+      temperature: @temperature,
+      top_p: @top_p,
+      top_k: @top_k,
+      stop_sequences: @stop_sequences,
+      stream: stream,
+    )
   end
 end

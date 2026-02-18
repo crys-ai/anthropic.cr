@@ -1,6 +1,6 @@
-# Contributing to llm.cr
+# Contributing to anthropic.cr
 
-Thank you for your interest in contributing to llm.cr!
+Thank you for your interest in contributing to anthropic.cr!
 This document provides guidelines and information to help you get started.
 
 ## Table of Contents
@@ -25,8 +25,8 @@ This document provides guidelines and information to help you get started.
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/crys-ai/llm.cr.git
-cd llm.cr
+git clone https://github.com/crys-ai/anthropic.cr.git
+cd anthropic.cr
 ```
 
 1. Install dependencies and build tools:
@@ -51,11 +51,48 @@ bin/hace spec
 
 ## Project Architecture
 
-TBD
+```
+src/
+├── anthropic.cr                  # Entry point (Namespace + requires)
+└── anthropic/
+    ├── client.cr                 # HTTP::Client + DB::Pool
+    ├── configuration.cr          # Configuration struct
+    ├── version.cr                # Compile-time version
+    ├── errors.cr                 # Error hierarchy
+    ├── models.cr                 # Model enum
+    ├── content/                  # Generic content block system
+    │   ├── data.cr               # Data protocol
+    │   ├── block.cr              # Block(T) generic
+    │   ├── type.cr               # Type enum
+    │   ├── text_data.cr          # Text content
+    │   ├── image_data.cr         # Image content
+    │   ├── tool_use_data.cr      # Tool use content
+    │   ├── tool_result_data.cr   # Tool result content
+    │   └── unknown_data.cr       # Forward-compat unknown types
+    ├── content.cr                # Factory methods + union type
+    ├── models/                   # API data models
+    │   ├── message.cr            # Message struct + JSON parser
+    │   ├── content.cr            # Response content blocks
+    │   ├── converters.cr         # JSON converters
+    │   └── usage.cr              # Usage stats
+    ├── messages/                 # Messages API
+    │   ├── api.cr                # API client (create + stream)
+    │   ├── request.cr            # Request struct
+    │   └── response.cr           # Response struct
+    └── streaming/                # SSE streaming
+        ├── event.cr              # StreamEvent types
+        └── event_source.cr       # SSE parser
+```
 
 ### Module Overview
 
-TBD
+- **`Anthropic::Client`** -- Entry point. Wraps HTTP::Client, handles authentication headers and error responses.
+- **`Anthropic::Content::Block(T)`** -- Generic content block parameterized on a `Data` protocol type. Provides compile-time type safety for text, image, tool use, and tool result blocks.
+- **`Anthropic::Content::UnknownData`** -- Forward-compatibility catch-all for unrecognized content block types from the API.
+- **`Anthropic::Messages::API`** -- Messages endpoint handler (`create` for synchronous, `stream` for SSE).
+- **`Anthropic::Messages::Request` / `Response`** -- Structs for serializing requests and deserializing responses.
+- **`Anthropic::Model`** -- Enum of supported models with convenience aliases (`.opus`, `.sonnet`, `.haiku`) and API string conversion.
+- **`Anthropic::EventSource`** -- SSE parser for streaming responses.
 
 ## Running Tests
 
@@ -64,17 +101,29 @@ TBD
 bin/hace spec
 
 # Run specific test file
-crystal spec spec/llm/somefile.cr
+crystal spec spec/anthropic/somefile.cr
 
 # Run with verbose output
 crystal spec --verbose
 ```
 
+## Integration Tests
+
+Integration tests are end-to-end style tests that simulate real API interactions using WebMock. They verify the full request/response cycle without hitting the actual Anthropic API.
+
+Run them with the standard test command:
+
+```bash
+crystal spec
+```
+
+These tests use mocked HTTP responses to ensure consistent, fast test execution without requiring API credentials.
+
 ## Code Coverage
 
 Code coverage is automatically generated and uploaded to [Codecov](https://codecov.io) on every push to `main`. The CI workflow uses [kcov](https://github.com/SimonKagstrom/kcov) to measure coverage.
 
-View coverage reports at: `https://codecov.io/gh/crys-ai/llm.cr`
+View coverage reports at: `https://codecov.io/gh/crys-ai/anthropic.cr`
 
 ### Available Tasks
 

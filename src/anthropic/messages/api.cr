@@ -1,3 +1,5 @@
+require "json"
+
 class Anthropic::Messages::API
   ENDPOINT = "/v1/messages"
 
@@ -21,9 +23,10 @@ class Anthropic::Messages::API
 
   # Streaming: yields StreamEvent for each SSE event
   def stream(request : Request, &block : StreamEvent ->) : Nil
-    request.stream = true
+    # Create a copy with stream=true to avoid mutating caller's request
+    stream_request = request.with_stream(true)
 
-    @client.post_stream(ENDPOINT, request.to_json) do |response|
+    @client.post_stream(ENDPOINT, stream_request.to_json) do |response|
       EventSource.new(response.body_io)
         .on_message do |msg, _|
           data = msg.data.join("\n")

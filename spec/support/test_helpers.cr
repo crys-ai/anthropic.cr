@@ -20,7 +20,7 @@ module TestHelpers
   def self.response_json(
     text : String = "Hello!",
     id : String = "msg_test_123",
-    model : String = "claude-sonnet-4-5-20251101",
+    model : String = "claude-sonnet-4-5-20250929",
     stop_reason : String = "end_turn",
     input_tokens : Int32 = 10,
     output_tokens : Int32 = 20,
@@ -53,7 +53,7 @@ module TestHelpers
   def self.stub_messages(
     text : String = "Hello!",
     id : String = "msg_test_123",
-    model : String = "claude-sonnet-4-5-20251101",
+    model : String = "claude-sonnet-4-5-20250929",
     stop_reason : String = "end_turn",
     input_tokens : Int32 = 10,
     output_tokens : Int32 = 20,
@@ -92,8 +92,9 @@ module TestHelpers
   end
 
   # Creates a test client with a stubbed API key.
+  # Explicitly sets base_url to avoid picking up ANTHROPIC_BASE_URL from the environment.
   def self.test_client(api_key : String = "sk-ant-test-key") : Anthropic::Client
-    Anthropic::Client.new(api_key: api_key)
+    Anthropic::Client.new(api_key: api_key, base_url: "https://api.anthropic.com")
   end
 
   # Sample SSE stream response for testing.

@@ -6,27 +6,28 @@ enum Anthropic::Model
   # Claude 4.5 models
   ClaudeOpus4_5
   ClaudeSonnet4_5
+  ClaudeHaiku4_5
 
   # Claude 4 models
   ClaudeOpus4
   ClaudeSonnet4
 
-  # Claude 3.5 models
-  ClaudeSonnet3_5
-  ClaudeHaiku3_5
+  # Returns the mapping of enum values to their API string identifiers.
+  def self.api_strings : Hash(Model, String)
+    {
+      ClaudeOpus4_6   => "claude-opus-4-6",
+      ClaudeSonnet4_6 => "claude-sonnet-4-6",
+      ClaudeOpus4_5   => "claude-opus-4-5-20251101",
+      ClaudeSonnet4_5 => "claude-sonnet-4-5-20250929",
+      ClaudeHaiku4_5  => "claude-haiku-4-5-20251001",
+      ClaudeOpus4     => "claude-opus-4-20250514",
+      ClaudeSonnet4   => "claude-sonnet-4-20250514",
+    }
+  end
 
   # Returns the API model identifier string.
   def to_api_string : String
-    case self
-    in ClaudeOpus4_6   then "claude-opus-4-6"
-    in ClaudeSonnet4_6 then "claude-sonnet-4-6"
-    in ClaudeOpus4_5   then "claude-opus-4-5-20251101"
-    in ClaudeSonnet4_5 then "claude-sonnet-4-5-20251101"
-    in ClaudeOpus4     then "claude-opus-4-20251101"
-    in ClaudeSonnet4   then "claude-sonnet-4-20251101"
-    in ClaudeSonnet3_5 then "claude-3-5-sonnet-20260101"
-    in ClaudeHaiku3_5  then "claude-3-5-haiku-20260101"
-    end
+    self.class.api_strings[self]
   end
 
   def to_json(json : JSON::Builder) : Nil
@@ -43,12 +44,12 @@ enum Anthropic::Model
   end
 
   def self.haiku : Model
-    ClaudeHaiku3_5
+    ClaudeHaiku4_5
   end
 
   # Parses a model name from a string, supporting friendly aliases
   # ("opus", "sonnet", "haiku") in addition to the standard enum names
-  # accepted by `Model.parse` (e.g. "ClaudeOpus4_5", "claude_opus_4_5").
+  # accepted by `Model.parse` (e.g. "ClaudeOpus4_6", "claude_opus_4_6").
   def self.from_friendly(value : String) : Model
     case value.downcase
     when "opus"   then opus
