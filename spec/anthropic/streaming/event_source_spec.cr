@@ -112,4 +112,124 @@ describe Anthropic::EventSource do
 
     events.size.should eq 1
   end
+
+  it "strips only one leading space from data field values" do
+    # "data:  two spaces" should become " two spaces" (one space stripped)
+    input = IO::Memory.new("data:  two spaces\n\n")
+
+    events = [] of Array(String)
+    Anthropic::EventSource.new(input)
+      .on_message { |msg, _| events << msg.data }
+      .run
+
+    events.size.should eq(1)
+    events[0].should eq([" two spaces"])
+  end
+
+  it "strips only one leading space from event field values" do
+    input = IO::Memory.new("event:  spaced_event\ndata: test\n\n")
+
+    events = [] of String
+    Anthropic::EventSource.new(input)
+      .on_message { |msg, _| events << msg.event }
+      .run
+
+    events.size.should eq(1)
+    events[0].should eq(" spaced_event")
+  end
+
+  it "strips only one leading space from id field values" do
+    input = IO::Memory.new("id:  spaced-id\ndata: test\n\n")
+
+    es = Anthropic::EventSource.new(input)
+    es.on_message { |_, _| }
+    es.run
+
+    es.last_id.should eq(" spaced-id")
+  end
+
+  it "handles data field with no space after colon" do
+    input = IO::Memory.new("data:nospace\n\n")
+
+    events = [] of Array(String)
+    Anthropic::EventSource.new(input)
+      .on_message { |msg, _| events << msg.data }
+      .run
+
+    events.size.should eq(1)
+    events[0].should eq(["nospace"])
+  end
+
+  it "handles data field with exactly one space after colon" do
+    input = IO::Memory.new("data: single\n\n")
+
+    events = [] of Array(String)
+    Anthropic::EventSource.new(input)
+      .on_message { |msg, _| events << msg.data }
+      .run
+
+    events.size.should eq(1)
+    events[0].should eq(["single"])
+  end
+
+  it "retains last_id when subsequent events omit id field" do
+    input = IO::Memory.new(<<-SSE)
+      id: event-1
+      data: first
+
+      data: second
+
+      SSE
+
+    es = Anthropic::EventSource.new(input)
+    ids_at_each_event = [] of String?
+    es.on_message do |_, source|
+      ids_at_each_event << source.last_id
+    end
+    es.run
+
+    ids_at_each_event.size.should eq(2)
+    ids_at_each_event[0].should eq("event-1")
+    ids_at_each_event[1].should eq("event-1") # retained, NOT reset to nil
+  end
+
+  it "updates last_id when a later event provides a new id" do
+    input = IO::Memory.new(<<-SSE)
+      id: first-id
+      data: one
+
+      data: two
+
+      id: third-id
+      data: three
+
+      SSE
+
+    es = Anthropic::EventSource.new(input)
+    ids_at_each_event = [] of String?
+    es.on_message do |_, source|
+      ids_at_each_event << source.last_id
+    end
+    es.run
+
+    ids_at_each_event.size.should eq(3)
+    ids_at_each_event[0].should eq("first-id")
+    ids_at_each_event[1].should eq("first-id") # retained
+    ids_at_each_event[2].should eq("third-id") # updated
+  end
+
+  it "last_id remains nil when no events have id fields" do
+    input = IO::Memory.new(<<-SSE)
+      data: first
+
+      data: second
+
+      SSE
+
+    es = Anthropic::EventSource.new(input)
+    es.on_message { |_, _| }
+    es.run
+
+    es.last_id.should be_nil
+  end
 end

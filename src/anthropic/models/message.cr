@@ -42,16 +42,24 @@ struct Anthropic::Message
     role = Role::User
     content : String | Array(ContentBlock) = ""
 
+    found_role = false
+    found_content = false
+
     pull.read_object do |key|
       case key
       when "role"
         role = Role.parse(pull.read_string)
+        found_role = true
       when "content"
         content = parse_content(pull)
+        found_content = true
       else
         pull.skip
       end
     end
+
+    raise JSON::ParseException.new("Missing required field 'role' in Message", 0, 0) unless found_role
+    raise JSON::ParseException.new("Missing required field 'content' in Message", 0, 0) unless found_content
 
     new(role, content)
   end
@@ -75,7 +83,7 @@ struct Anthropic::Message
 
     # For known types, re-parse with field extraction
     case block_type
-    when "text", "image", "tool_use", "tool_result"
+    when "text", "image", "tool_use", "tool_result", "thinking"
       parse_known_content_block(block_type, block_json)
     else
       Content::Block.new(Content::UnknownData.new(block_type, block_json))
@@ -101,6 +109,8 @@ struct Anthropic::Message
         content.as_a
       end
       Content::Block.new(Content::ToolResultData.new(json["tool_use_id"].as_s, parsed_content, json["is_error"]?.try(&.as_bool) || false))
+    when "thinking"
+      Content::Block.new(Content::ThinkingData.new(json["thinking"].as_s, json["signature"]?.try(&.as_s)))
     else
       Content::Block.new(Content::UnknownData.new(type, json))
     end

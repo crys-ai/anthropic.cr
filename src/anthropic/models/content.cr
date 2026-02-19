@@ -26,6 +26,19 @@ struct Anthropic::ResponseToolUseBlock
   end
 end
 
+# Response content block for thinking in API responses.
+# Used for extended thinking where Claude shows its reasoning.
+struct Anthropic::ResponseThinkingBlock
+  include JSON::Serializable
+
+  getter type : String = "thinking"
+  getter thinking : String
+  getter signature : String?
+
+  def initialize(@thinking : String, @signature : String? = nil)
+  end
+end
+
 # Response content block for forward compatibility.
 # Preserves unknown block types without failing parsing.
 struct Anthropic::ResponseUnknownBlock
@@ -43,4 +56,5 @@ end
 # Union type for all possible response content blocks.
 alias Anthropic::ResponseContentBlock = Anthropic::ResponseTextBlock |
                                         Anthropic::ResponseToolUseBlock |
+                                        Anthropic::ResponseThinkingBlock |
                                         Anthropic::ResponseUnknownBlock

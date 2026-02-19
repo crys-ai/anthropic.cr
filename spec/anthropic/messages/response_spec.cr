@@ -113,7 +113,7 @@ describe Anthropic::Messages::Response do
           "role": "assistant",
           "content": [
             {"type": "text", "text": "Known text."},
-            {"type": "thinking", "thinking": "internal reasoning payload"}
+            {"type": "future_unknown_type", "data": "some future payload"}
           ],
           "model": "claude-sonnet-4-20250514",
           "stop_reason": "end_turn",
@@ -127,8 +127,8 @@ describe Anthropic::Messages::Response do
       unknown = response.content[1]
       unknown.should be_a(Anthropic::ResponseUnknownBlock)
       unknown_block = unknown.as(Anthropic::ResponseUnknownBlock)
-      unknown_block.type.should eq("thinking")
-      unknown_block.raw["thinking"].as_s.should eq("internal reasoning payload")
+      unknown_block.type.should eq("future_unknown_type")
+      unknown_block.raw["data"].as_s.should eq("some future payload")
     end
 
     it "roundtrips unknown content blocks through to_json and from_json" do
@@ -139,7 +139,7 @@ describe Anthropic::Messages::Response do
           "role": "assistant",
           "content": [
             {"type": "text", "text": "Known text."},
-            {"type": "thinking", "thinking": "internal reasoning payload"}
+            {"type": "future_unknown_type", "data": "some future payload"}
           ],
           "model": "claude-sonnet-4-20250514",
           "stop_reason": "end_turn",
@@ -156,8 +156,8 @@ describe Anthropic::Messages::Response do
       restored_unknown = restored.content[1]
       restored_unknown.should be_a(Anthropic::ResponseUnknownBlock)
       restored_unknown_block = restored_unknown.as(Anthropic::ResponseUnknownBlock)
-      restored_unknown_block.type.should eq("thinking")
-      restored_unknown_block.raw["thinking"].as_s.should eq("internal reasoning payload")
+      restored_unknown_block.type.should eq("future_unknown_type")
+      restored_unknown_block.raw["data"].as_s.should eq("some future payload")
     end
   end
 
@@ -350,6 +350,155 @@ describe Anthropic::Messages::Response do
       json = TestHelpers::SAMPLE_RESPONSE_JSON.gsub(%("role": "assistant"), %("role": "USER"))
       response = Anthropic::Messages::Response.from_json(json)
       response.role_enum.should eq(Anthropic::Message::Role::User)
+    end
+  end
+
+  describe "required field validation" do
+    it "raises on missing id field" do
+      json = <<-JSON
+        {
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      expect_raises(JSON::ParseException, /Missing required field 'id'/) do
+        Anthropic::Messages::Response.from_json(json)
+      end
+    end
+
+    it "raises on missing type field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      expect_raises(JSON::ParseException, /Missing required field 'type'/) do
+        Anthropic::Messages::Response.from_json(json)
+      end
+    end
+
+    it "raises on missing role field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      expect_raises(JSON::ParseException, /Missing required field 'role'/) do
+        Anthropic::Messages::Response.from_json(json)
+      end
+    end
+
+    it "raises on missing model field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      expect_raises(JSON::ParseException, /Missing required field 'model'/) do
+        Anthropic::Messages::Response.from_json(json)
+      end
+    end
+
+    it "raises on missing usage field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn"
+        }
+        JSON
+      expect_raises(JSON::ParseException, /Missing required field 'usage'/) do
+        Anthropic::Messages::Response.from_json(json)
+      end
+    end
+
+    it "accepts response without optional content field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "role": "assistant",
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      response = Anthropic::Messages::Response.from_json(json)
+      response.content.should be_empty
+    end
+
+    it "accepts response without optional stop_reason field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      response = Anthropic::Messages::Response.from_json(json)
+      response.stop_reason.should be_nil
+    end
+
+    it "accepts response without optional stop_sequence field" do
+      json = <<-JSON
+        {
+          "id": "msg_test",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "model": "claude-sonnet-4-20250514",
+          "stop_reason": "end_turn",
+          "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+        JSON
+      response = Anthropic::Messages::Response.from_json(json)
+      response.stop_sequence.should be_nil
+    end
+  end
+
+  describe "#request_id" do
+    it "defaults to nil when parsed from JSON" do
+      response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
+      response.request_id.should be_nil
+    end
+
+    it "can be set after parsing" do
+      response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
+      response.request_id = "req_test_abc"
+      response.request_id.should eq("req_test_abc")
+    end
+
+    it "is not included in JSON serialization" do
+      response = Anthropic::Messages::Response.from_json(TestHelpers::SAMPLE_RESPONSE_JSON)
+      response.request_id = "req_should_not_appear"
+      json_output = response.to_json
+      json_output.should_not contain("request_id")
+      json_output.should_not contain("req_should_not_appear")
     end
   end
 end

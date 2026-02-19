@@ -42,6 +42,11 @@ module Anthropic::Content
   def self.tool_result(tool_use_id : String, content : Array(JSON::Any), is_error : Bool = false) : Block(ToolResultData)
     Block.new(ToolResultData.new(tool_use_id, content, is_error))
   end
+
+  # Creates a thinking content block for extended thinking.
+  def self.thinking(value : String, signature : String? = nil) : Block(ThinkingData)
+    Block.new(ThinkingData.new(value, signature))
+  end
 end
 
 # Union type for content blocks in messages.
@@ -49,4 +54,5 @@ alias Anthropic::ContentBlock = Anthropic::Content::Block(Anthropic::Content::Te
                                 Anthropic::Content::Block(Anthropic::Content::ImageData) |
                                 Anthropic::Content::Block(Anthropic::Content::ToolUseData) |
                                 Anthropic::Content::Block(Anthropic::Content::ToolResultData) |
+                                Anthropic::Content::Block(Anthropic::Content::ThinkingData) |
                                 Anthropic::Content::Block(Anthropic::Content::UnknownData)

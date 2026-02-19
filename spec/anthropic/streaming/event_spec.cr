@@ -97,5 +97,24 @@ describe Anthropic::StreamEvent do
       event = Anthropic::StreamEvent.parse("future_event", json)
       event.should be_a(Anthropic::UnknownStreamEvent)
     end
+
+    it "parses unknown events with non-JSON text" do
+      text = "plain text data"
+      event = Anthropic::StreamEvent.parse("future_event", text)
+      event.should be_a(Anthropic::UnknownStreamEvent)
+
+      if event.is_a?(Anthropic::UnknownStreamEvent)
+        event.raw.as_s.should eq "plain text data"
+      end
+    end
+
+    it "parses unknown events with empty string" do
+      event = Anthropic::StreamEvent.parse("future_event", "")
+      event.should be_a(Anthropic::UnknownStreamEvent)
+
+      if event.is_a?(Anthropic::UnknownStreamEvent)
+        event.raw.as_s.should eq ""
+      end
+    end
   end
 end

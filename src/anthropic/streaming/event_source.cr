@@ -53,15 +53,22 @@ class Anthropic::EventSource
 
     lines.each do |line|
       case
-      when line.starts_with?("event:") then event = line[6..].lstrip
-      when line.starts_with?("data:")  then data << line[5..].lstrip
-      when line.starts_with?("id:")    then id = line[3..].lstrip
+      when line.starts_with?("event:") then event = strip_sse_value(line[6..])
+      when line.starts_with?("data:")  then data << strip_sse_value(line[5..])
+      when line.starts_with?("id:")    then id = strip_sse_value(line[3..])
       when line.starts_with?("retry:") then nil # ignore
       when line.starts_with?(":")      then nil # comment
       end
     end
 
-    @last_id = id
+    @last_id = id unless id.nil?
     Message.new(event: event, data: data, id: id)
+  end
+
+  # Strips exactly one leading space from a field value, per SSE spec.
+  # The SSE specification says: "If value is not the empty string and
+  # its first character is a U+0020 SPACE character, remove it."
+  private def strip_sse_value(value : String) : String
+    value.starts_with?(' ') ? value[1..] : value
   end
 end

@@ -113,16 +113,38 @@ describe Anthropic::Message do
       blocks.first.type.should eq(Anthropic::Content::Type::ToolResult)
     end
 
-    it "parses unknown content block types without crashing" do
+    it "parses thinking content blocks as ThinkingData" do
       json = %({"role":"assistant","content":[{"type":"thinking","thinking":"I need to...","signature":"abc123"}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+      block = blocks.first
+      block.type.should eq(Anthropic::Content::Type::Thinking)
+      block.data.should be_a(Anthropic::Content::ThinkingData)
+      thinking = block.data.as(Anthropic::Content::ThinkingData)
+      thinking.thinking.should eq("I need to...")
+      thinking.signature?.should eq("abc123")
+    end
+
+    it "parses thinking content blocks without signature" do
+      json = %({"role":"assistant","content":[{"type":"thinking","thinking":"Let me reason..."}]})
+      msg = Anthropic::Message.from_json(json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(1)
+      thinking = blocks.first.data.as(Anthropic::Content::ThinkingData)
+      thinking.thinking.should eq("Let me reason...")
+      thinking.signature?.should be_nil
+    end
+
+    it "parses unknown content block types without crashing" do
+      json = %({"role":"assistant","content":[{"type":"server_tool_result","id":"sr_1","content":"data"}]})
       msg = Anthropic::Message.from_json(json)
       blocks = msg.content.as(Array(Anthropic::ContentBlock))
       blocks.size.should eq(1)
       block = blocks.first
       block.data.should be_a(Anthropic::Content::UnknownData)
       unknown = block.data.as(Anthropic::Content::UnknownData)
-      unknown.type_string.should eq("thinking")
-      unknown.raw["thinking"].as_s.should eq("I need to...")
+      unknown.type_string.should eq("server_tool_result")
     end
 
     it "parses mixed known and unknown content blocks" do
@@ -142,19 +164,19 @@ describe Anthropic::Message do
     end
   end
 
-  describe "unknown content roundtrip" do
-    it "preserves unknown type through serialization roundtrip" do
+  describe "thinking content roundtrip" do
+    it "roundtrips thinking blocks with signature through from_json/to_json/from_json" do
       original_json = %({"role":"assistant","content":[{"type":"thinking","thinking":"I need to...","signature":"abc123"}]})
       msg = Anthropic::Message.from_json(original_json)
       blocks = msg.content.as(Array(Anthropic::ContentBlock))
       blocks.size.should eq(1)
 
       block = blocks.first
-      block.data.should be_a(Anthropic::Content::UnknownData)
-      unknown = block.data.as(Anthropic::Content::UnknownData)
-      unknown.type_string.should eq("thinking")
-      unknown.raw["thinking"].as_s.should eq("I need to...")
-      unknown.raw["signature"].as_s.should eq("abc123")
+      block.type.should eq(Anthropic::Content::Type::Thinking)
+      block.data.should be_a(Anthropic::Content::ThinkingData)
+      thinking = block.data.as(Anthropic::Content::ThinkingData)
+      thinking.thinking.should eq("I need to...")
+      thinking.signature?.should eq("abc123")
 
       # Roundtrip through JSON serialization
       serialized = msg.to_json
@@ -162,16 +184,50 @@ describe Anthropic::Message do
       serialized.should contain(%("thinking":"I need to..."))
       serialized.should contain(%("signature":"abc123"))
 
-      # Parse again and verify data preserved
+      # Parse again and verify all fields preserved
       restored = Anthropic::Message.from_json(serialized)
       restored_blocks = restored.content.as(Array(Anthropic::ContentBlock))
       restored_blocks.size.should eq(1)
-      restored_unknown = restored_blocks.first.data.as(Anthropic::Content::UnknownData)
-      restored_unknown.type_string.should eq("thinking")
-      restored_unknown.raw["thinking"].as_s.should eq("I need to...")
-      restored_unknown.raw["signature"].as_s.should eq("abc123")
+      restored_thinking = restored_blocks.first.data.as(Anthropic::Content::ThinkingData)
+      restored_thinking.thinking.should eq("I need to...")
+      restored_thinking.signature?.should eq("abc123")
     end
 
+    it "roundtrips thinking blocks without signature" do
+      original_json = %({"role":"assistant","content":[{"type":"thinking","thinking":"Let me think step by step..."}]})
+      msg = Anthropic::Message.from_json(original_json)
+      thinking = msg.content.as(Array(Anthropic::ContentBlock)).first.data.as(Anthropic::Content::ThinkingData)
+      thinking.thinking.should eq("Let me think step by step...")
+      thinking.signature?.should be_nil
+
+      # Roundtrip
+      serialized = msg.to_json
+      restored = Anthropic::Message.from_json(serialized)
+      restored_thinking = restored.content.as(Array(Anthropic::ContentBlock)).first.data.as(Anthropic::Content::ThinkingData)
+      restored_thinking.thinking.should eq("Let me think step by step...")
+      restored_thinking.signature?.should be_nil
+    end
+
+    it "roundtrips mixed thinking and text blocks" do
+      original_json = %({"role":"assistant","content":[{"type":"thinking","thinking":"Reasoning...","signature":"sig1"},{"type":"text","text":"The answer is 42."}]})
+      msg = Anthropic::Message.from_json(original_json)
+      blocks = msg.content.as(Array(Anthropic::ContentBlock))
+      blocks.size.should eq(2)
+      blocks[0].data.should be_a(Anthropic::Content::ThinkingData)
+      blocks[1].data.should be_a(Anthropic::Content::TextData)
+
+      # Roundtrip
+      serialized = msg.to_json
+      restored = Anthropic::Message.from_json(serialized)
+      restored_blocks = restored.content.as(Array(Anthropic::ContentBlock))
+      restored_blocks.size.should eq(2)
+      restored_blocks[0].data.as(Anthropic::Content::ThinkingData).thinking.should eq("Reasoning...")
+      restored_blocks[0].data.as(Anthropic::Content::ThinkingData).signature?.should eq("sig1")
+      restored_blocks[1].data.as(Anthropic::Content::TextData).text.should eq("The answer is 42.")
+    end
+  end
+
+  describe "unknown content roundtrip" do
     it "preserves unknown type with complex nested data" do
       original_json = %({"role":"assistant","content":[{"type":"citation","text":"Hello","source":{"type":"file","file_id":"file_123","start":0,"end":5}}]})
       msg = Anthropic::Message.from_json(original_json)
@@ -290,6 +346,29 @@ describe Anthropic::Message do
       blocks[1].data.should be_a(Anthropic::Content::ToolResultData)
       tool_result = blocks[1].data.as(Anthropic::Content::ToolResultData)
       tool_result.content.as(Array(JSON::Any)).first["text"].as_s.should eq("computed value: 42")
+    end
+  end
+
+  describe "required field validation" do
+    it "raises on missing role field" do
+      json = %({"content": "Hello!"})
+      expect_raises(JSON::ParseException, /Missing required field 'role'/) do
+        Anthropic::Message.from_json(json)
+      end
+    end
+
+    it "raises on missing content field" do
+      json = %({"role": "user"})
+      expect_raises(JSON::ParseException, /Missing required field 'content'/) do
+        Anthropic::Message.from_json(json)
+      end
+    end
+
+    it "raises on empty JSON object" do
+      json = %({})
+      expect_raises(JSON::ParseException, /Missing required field/) do
+        Anthropic::Message.from_json(json)
+      end
     end
   end
 end

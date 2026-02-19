@@ -155,6 +155,82 @@ describe Anthropic::TimeoutError do
   end
 end
 
+describe Anthropic::APIError, "#request_id" do
+  it "extracts request-id header from response" do
+    response = HTTP::Client::Response.new(
+      400,
+      body: %({"error":{"type":"invalid_request_error","message":"Bad"}}),
+      headers: HTTP::Headers{"request-id" => "req_err_123"}
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.request_id.should eq("req_err_123")
+  end
+
+  it "extracts x-request-id header from response" do
+    response = HTTP::Client::Response.new(
+      400,
+      body: %({"error":{"type":"invalid_request_error","message":"Bad"}}),
+      headers: HTTP::Headers{"x-request-id" => "req_x_456"}
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.request_id.should eq("req_x_456")
+  end
+
+  it "prefers request-id over x-request-id" do
+    response = HTTP::Client::Response.new(
+      400,
+      body: %({"error":{"type":"invalid_request_error","message":"Bad"}}),
+      headers: HTTP::Headers{
+        "request-id"   => "req_preferred",
+        "x-request-id" => "req_fallback",
+      }
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.request_id.should eq("req_preferred")
+  end
+
+  it "returns nil when no request ID header is present" do
+    response = HTTP::Client::Response.new(
+      400,
+      body: %({"error":{"type":"invalid_request_error","message":"Bad"}})
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.request_id.should be_nil
+  end
+
+  it "preserves request_id on 4xx errors" do
+    response = HTTP::Client::Response.new(
+      401,
+      body: %({"error":{"type":"authentication_error","message":"Invalid key"}}),
+      headers: HTTP::Headers{"request-id" => "req_401_abc"}
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.should be_a(Anthropic::AuthenticationError)
+    error.request_id.should eq("req_401_abc")
+  end
+
+  it "preserves request_id on 5xx errors" do
+    response = HTTP::Client::Response.new(
+      529,
+      body: %({"error":{"type":"overloaded_error","message":"Overloaded"}}),
+      headers: HTTP::Headers{"request-id" => "req_529_xyz"}
+    )
+    error = Anthropic::APIError.from_response(response)
+    error.should be_a(Anthropic::OverloadedError)
+    error.request_id.should eq("req_529_xyz")
+  end
+
+  it "defaults to nil when constructed without request_id" do
+    error = Anthropic::APIError.new(400, "invalid_request_error", "Bad request")
+    error.request_id.should be_nil
+  end
+
+  it "stores request_id when constructed with one" do
+    error = Anthropic::APIError.new(400, "invalid_request_error", "Bad request", "req_manual")
+    error.request_id.should eq("req_manual")
+  end
+end
+
 describe Anthropic::APIError, "#parse_error_body" do
   it "parses valid error body correctly" do
     response = HTTP::Client::Response.new(400, body: %({"error":{"type":"invalid_request_error","message":"Bad input"}}))
@@ -274,5 +350,50 @@ describe Anthropic::APIError, "#parse_error_body" do
 
     error.error_type.should eq("unknown_error")
     error.error_message.should eq("null")
+  end
+
+  it "handles error value as a plain string" do
+    body = %({"error":"oops"})
+    response = HTTP::Client::Response.new(500, body: body)
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq("oops")
+  end
+
+  it "handles error value as an array" do
+    body = %({"error":[1,2,3]})
+    response = HTTP::Client::Response.new(500, body: body)
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq(body)
+  end
+
+  it "handles error value as null" do
+    body = %({"error":null})
+    response = HTTP::Client::Response.new(500, body: body)
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq(body)
+  end
+
+  it "handles error value as a number" do
+    body = %({"error":42})
+    response = HTTP::Client::Response.new(500, body: body)
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq(body)
+  end
+
+  it "handles error hash with non-string type and message fields" do
+    body = %({"error":{"type":123,"message":true}})
+    response = HTTP::Client::Response.new(500, body: body)
+    error = Anthropic::APIError.from_response(response)
+
+    error.error_type.should eq("unknown_error")
+    error.error_message.should eq(body)
   end
 end

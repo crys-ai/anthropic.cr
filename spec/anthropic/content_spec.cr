@@ -7,11 +7,13 @@ describe Anthropic::Content do
       Anthropic::Content::Type::Image.should be_a(Anthropic::Content::Type)
       Anthropic::Content::Type::ToolUse.should be_a(Anthropic::Content::Type)
       Anthropic::Content::Type::ToolResult.should be_a(Anthropic::Content::Type)
+      Anthropic::Content::Type::Thinking.should be_a(Anthropic::Content::Type)
     end
 
     it "serializes to snake_case" do
       Anthropic::Content::Type::ToolUse.to_json.should eq(%("tool_use"))
       Anthropic::Content::Type::ToolResult.to_json.should eq(%("tool_result"))
+      Anthropic::Content::Type::Thinking.to_json.should eq(%("thinking"))
     end
   end
 

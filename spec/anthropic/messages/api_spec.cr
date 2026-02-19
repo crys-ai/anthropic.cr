@@ -65,6 +65,107 @@ describe Anthropic::Messages::API do
     end
   end
 
+  describe "#create request_id" do
+    it "surfaces request-id header on successful response" do
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        status: 200,
+        body: TestHelpers.response_json,
+        headers: HTTP::Headers{
+          "Content-Type" => "application/json",
+          "request-id"   => "req_success_123",
+        },
+      )
+
+      client = TestHelpers.test_client
+      response = client.messages.create(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      )
+
+      response.request_id.should eq("req_success_123")
+    end
+
+    it "surfaces x-request-id header variant on successful response" do
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        status: 200,
+        body: TestHelpers.response_json,
+        headers: HTTP::Headers{
+          "Content-Type" => "application/json",
+          "x-request-id" => "req_x_success_456",
+        },
+      )
+
+      client = TestHelpers.test_client
+      response = client.messages.create(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      )
+
+      response.request_id.should eq("req_x_success_456")
+    end
+
+    it "returns nil request_id when no header present" do
+      TestHelpers.stub_messages
+
+      client = TestHelpers.test_client
+      response = client.messages.create(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      )
+
+      response.request_id.should be_nil
+    end
+
+    it "preserves request_id on error responses via exception" do
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        status: 429,
+        body: TestHelpers.error_json("rate_limit_error", "Rate limited"),
+        headers: HTTP::Headers{
+          "Content-Type" => "application/json",
+          "request-id"   => "req_err_429",
+        },
+      )
+
+      client = TestHelpers.test_client
+      begin
+        client.messages.create(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+        )
+        fail "Expected RateLimitError to be raised"
+      rescue ex : Anthropic::RateLimitError
+        ex.request_id.should eq("req_err_429")
+      end
+    end
+
+    it "preserves request_id on 5xx error responses" do
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        status: 529,
+        body: TestHelpers.error_json("overloaded_error", "Overloaded"),
+        headers: HTTP::Headers{
+          "Content-Type" => "application/json",
+          "request-id"   => "req_err_529",
+        },
+      )
+
+      client = TestHelpers.test_client
+      begin
+        client.messages.create(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+        )
+        fail "Expected OverloadedError to be raised"
+      rescue ex : Anthropic::OverloadedError
+        ex.request_id.should eq("req_err_529")
+      end
+    end
+  end
+
   describe "#create with params" do
     it "sends model and messages" do
       WebMock.stub(:post, TestHelpers::API_URL)
@@ -423,6 +524,64 @@ describe Anthropic::Messages::API do
     end
   end
 
+  describe "streaming keepalive/comment frames" do
+    it "skips comment-only SSE frames without crashing" do
+      TestHelpers.stub_stream_with_keepalives(["Hello", " world"])
+
+      client = TestHelpers.test_client
+      events = [] of Anthropic::StreamEvent
+
+      client.messages.stream(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      ) do |event|
+        events << event
+      end
+
+      events.should_not be_empty
+      events.first.should be_a(Anthropic::StreamEvent::MessageStart)
+      events.last.should be_a(Anthropic::StreamEvent::MessageStop)
+
+      # Verify text deltas are still collected correctly
+      text_deltas = events.compact_map do |e|
+        if delta = e.as?(Anthropic::StreamEvent::ContentBlockDelta)
+          delta.delta.text
+        end
+      end
+
+      text_deltas.should eq(["Hello", " world"])
+    end
+
+    it "handles a stream that is only comment frames" do
+      sse = String.build do |io|
+        io << ":keepalive\n"
+        io << "\n"
+        io << ":keepalive\n"
+        io << "\n"
+      end
+
+      WebMock.stub(:post, TestHelpers::API_URL).to_return(
+        body_io: IO::Memory.new(sse),
+        status: 200,
+        headers: {"Content-Type" => "text/event-stream"},
+      )
+
+      client = TestHelpers.test_client
+      events = [] of Anthropic::StreamEvent
+
+      client.messages.stream(
+        model: Anthropic::Model.sonnet,
+        messages: [Anthropic::Message.user("Hi")],
+        max_tokens: 100,
+      ) do |event|
+        events << event
+      end
+
+      events.should be_empty
+    end
+  end
+
   describe "streaming event types" do
     it "parses all standard event types" do
       TestHelpers.stub_stream(["A", "B"])
@@ -527,6 +686,169 @@ describe Anthropic::Messages::API do
       usage.should_not be_empty
       usage.first.input_tokens.should eq(10)
       usage.first.output_tokens.should be > 0
+    end
+  end
+
+  describe "request_options forwarding" do
+    describe "#create" do
+      it "forwards request_options to client" do
+        WebMock.stub(:post, TestHelpers::API_URL)
+          .with(headers: {"X-Custom-Header" => "custom-value"})
+          .to_return(
+            status: 200,
+            body: TestHelpers.response_json,
+            headers: HTTP::Headers{"Content-Type" => "application/json"},
+          )
+
+        client = TestHelpers.test_client
+        request = Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+        )
+        options = Anthropic::RequestOptions.new(
+          extra_headers: HTTP::Headers{"X-Custom-Header" => "custom-value"}
+        )
+
+        response = client.messages.create(request, options)
+        response.should be_a(Anthropic::Messages::Response)
+      end
+
+      it "forwards beta headers via request_options" do
+        WebMock.stub(:post, TestHelpers::API_URL)
+          .with(headers: {"anthropic-beta" => "test-beta-feature"})
+          .to_return(
+            status: 200,
+            body: TestHelpers.response_json,
+            headers: HTTP::Headers{"Content-Type" => "application/json"},
+          )
+
+        client = TestHelpers.test_client
+        request = Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+        )
+        options = Anthropic::RequestOptions.new(beta_headers: ["test-beta-feature"])
+
+        client.messages.create(request, options)
+      end
+
+      it "forwards request_options with convenience overload" do
+        WebMock.stub(:post, TestHelpers::API_URL)
+          .with(headers: {"X-Test" => "value"})
+          .to_return(
+            status: 200,
+            body: TestHelpers.response_json,
+            headers: HTTP::Headers{"Content-Type" => "application/json"},
+          )
+
+        client = TestHelpers.test_client
+        options = Anthropic::RequestOptions.new(
+          extra_headers: HTTP::Headers{"X-Test" => "value"}
+        )
+
+        response = client.messages.create(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+          request_options: options
+        )
+        response.should be_a(Anthropic::Messages::Response)
+      end
+    end
+
+    describe "#count_tokens" do
+      it "forwards request_options to client" do
+        WebMock.stub(:post, "#{TestHelpers::API_URL}/count_tokens")
+          .with(headers: {"X-Custom-Header" => "token-header"})
+          .to_return(
+            status: 200,
+            body: {input_tokens: 42}.to_json,
+            headers: HTTP::Headers{"Content-Type" => "application/json"},
+          )
+
+        client = TestHelpers.test_client
+        request = Anthropic::Messages::CountTokensRequest.new(
+          Anthropic::Model.sonnet,
+          [Anthropic::Message.user("Hello")]
+        )
+        options = Anthropic::RequestOptions.new(
+          extra_headers: HTTP::Headers{"X-Custom-Header" => "token-header"}
+        )
+
+        response = client.messages.count_tokens(request, options)
+        response.input_tokens.should eq(42)
+      end
+
+      it "forwards request_options with convenience method" do
+        WebMock.stub(:post, "#{TestHelpers::API_URL}/count_tokens")
+          .to_return(
+            status: 200,
+            body: {input_tokens: 10}.to_json,
+            headers: HTTP::Headers{"Content-Type" => "application/json"},
+          )
+
+        client = TestHelpers.test_client
+        options = Anthropic::RequestOptions.new(timeout: 30.seconds)
+
+        response = client.messages.count_tokens(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Test")],
+          request_options: options
+        )
+        response.input_tokens.should eq(10)
+      end
+    end
+
+    describe "#stream" do
+      it "forwards request_options to client" do
+        WebMock.stub(:post, TestHelpers::API_URL)
+          .with(headers: {"X-Stream-Header" => "stream-value"})
+          .to_return(
+            body_io: IO::Memory.new(TestHelpers.stream_sse(["OK"])),
+            status: 200,
+            headers: HTTP::Headers{"Content-Type" => "text/event-stream"},
+          )
+
+        client = TestHelpers.test_client
+        request = Anthropic::Messages::Request.new(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+        )
+        options = Anthropic::RequestOptions.new(
+          extra_headers: HTTP::Headers{"X-Stream-Header" => "stream-value"}
+        )
+
+        events = [] of Anthropic::StreamEvent
+        client.messages.stream(request, options) { |e| events << e }
+        events.should_not be_empty
+      end
+
+      it "forwards request_options with convenience overload" do
+        WebMock.stub(:post, TestHelpers::API_URL)
+          .with(headers: {"X-Test" => "value"})
+          .to_return(
+            body_io: IO::Memory.new(TestHelpers.stream_sse(["OK"])),
+            status: 200,
+            headers: HTTP::Headers{"Content-Type" => "text/event-stream"},
+          )
+
+        client = TestHelpers.test_client
+        options = Anthropic::RequestOptions.new(
+          extra_headers: HTTP::Headers{"X-Test" => "value"}
+        )
+
+        events = [] of Anthropic::StreamEvent
+        client.messages.stream(
+          model: Anthropic::Model.sonnet,
+          messages: [Anthropic::Message.user("Hi")],
+          max_tokens: 100,
+          request_options: options,
+        ) { |e| events << e }
+        events.should_not be_empty
+      end
     end
   end
 end

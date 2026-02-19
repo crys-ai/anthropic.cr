@@ -91,10 +91,50 @@ module TestHelpers
     end
   end
 
-  # Creates a test client with a stubbed API key.
+  # Creates a test client with a stubbed API key and disabled retries.
   # Explicitly sets base_url to avoid picking up ANTHROPIC_BASE_URL from the environment.
   def self.test_client(api_key : String = "sk-ant-test-key") : Anthropic::Client
-    Anthropic::Client.new(api_key: api_key, base_url: "https://api.anthropic.com")
+    Anthropic::Client.new(
+      Anthropic::Configuration.new(
+        api_key: api_key,
+        base_url: "https://api.anthropic.com",
+        retry_policy: Anthropic::RetryPolicy.disabled,
+      )
+    )
+  end
+
+  # Creates a test client with retries enabled (for retry behavior tests).
+  # Uses minimal delay (1ms) to avoid slowing down the test suite.
+  def self.test_client_with_retries(
+    api_key : String = "sk-ant-test-key",
+    max_retries : Int32 = 2,
+  ) : Anthropic::Client
+    Anthropic::Client.new(
+      Anthropic::Configuration.new(
+        api_key: api_key,
+        base_url: "https://api.anthropic.com",
+        retry_policy: Anthropic::RetryPolicy.new(
+          max_retries: max_retries,
+          base_delay: 1.millisecond,
+          max_delay: 10.milliseconds,
+        ),
+      )
+    )
+  end
+
+  # Creates a test client with beta headers enabled.
+  def self.test_client_with_betas(
+    api_key : String = "sk-ant-test-key",
+    beta_headers : Array(String) = [] of String,
+  ) : Anthropic::Client
+    Anthropic::Client.new(
+      Anthropic::Configuration.new(
+        api_key: api_key,
+        base_url: "https://api.anthropic.com",
+        retry_policy: Anthropic::RetryPolicy.disabled,
+        beta_headers: beta_headers,
+      )
+    )
   end
 
   # Sample SSE stream response for testing.
@@ -127,6 +167,65 @@ module TestHelpers
       io << "data: {\"type\":\"message_stop\"}\n"
       io << "\n"
     end
+  end
+
+  # Sample SSE stream response with keepalive comment frames interspersed.
+  # Comment-only frames (`:keepalive`) should be silently ignored by the stream handler.
+  def self.stream_sse_with_keepalives(text_chunks : Array(String) = ["Hello", " world"]) : String
+    String.build do |io|
+      io << "event: message_start\n"
+      io << "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-123\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-5-20250929\",\"stop_reason\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n"
+      io << "\n"
+
+      # Keepalive comment frame (no data lines, just a comment)
+      io << ":keepalive\n"
+      io << "\n"
+
+      io << "event: content_block_start\n"
+      io << "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n"
+      io << "\n"
+
+      text_chunks.each do |chunk|
+        # Intersperse keepalives between deltas
+        io << ":keepalive\n"
+        io << "\n"
+
+        io << "event: content_block_delta\n"
+        io << "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":" << chunk.to_json << "}}\n"
+        io << "\n"
+      end
+
+      io << "event: content_block_stop\n"
+      io << "data: {\"type\":\"content_block_stop\",\"index\":0}\n"
+      io << "\n"
+
+      # Keepalive right before message_delta
+      io << ":keepalive\n"
+      io << "\n"
+
+      io << "event: message_delta\n"
+      io << "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":10,\"output_tokens\":" << text_chunks.join.size << "}}\n"
+      io << "\n"
+
+      io << "event: message_stop\n"
+      io << "data: {\"type\":\"message_stop\"}\n"
+      io << "\n"
+    end
+  end
+
+  # Stubs a streaming POST with keepalive comment frames interspersed.
+  def self.stub_stream_with_keepalives(text_chunks : Array(String) = ["Hello", " world"]) : Nil
+    sse = stream_sse_with_keepalives(text_chunks)
+
+    WebMock.stub(:post, API_URL).to_return(
+      body_io: IO::Memory.new(sse),
+      status: 200,
+      headers: {
+        "Content-Type"  => "text/event-stream",
+        "Cache-Control" => "no-cache",
+        "Connection"    => "keep-alive",
+      },
+    )
   end
 
   # Stubs a streaming POST to the messages API.

@@ -4,6 +4,7 @@ module Anthropic::Content
     Image
     ToolUse
     ToolResult
+    Thinking
 
     def to_json(json : JSON::Builder) : Nil
       json.string(to_s.underscore)

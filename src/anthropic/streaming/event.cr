@@ -15,7 +15,12 @@ abstract struct Anthropic::StreamEvent
     when "message_stop"        then MessageStop.from_json(json)
     when "ping"                then Ping.from_json(json)
     when "error"               then Error.from_json(json)
-    else                            UnknownStreamEvent.new(type, JSON.parse(json))
+    else
+      begin
+        UnknownStreamEvent.new(type, JSON.parse(json))
+      rescue JSON::ParseException
+        UnknownStreamEvent.new(type, JSON::Any.new(json))
+      end
     end
   end
 end
@@ -53,6 +58,8 @@ struct Anthropic::StreamEvent::ContentBlockStart < Anthropic::StreamEvent
     include JSON::Serializable
     getter type : String
     getter text : String?
+    getter id : String?   # tool_use block ID
+    getter name : String? # tool_use block name
   end
 end
 
@@ -67,6 +74,7 @@ struct Anthropic::StreamEvent::ContentBlockDelta < Anthropic::StreamEvent
     getter text : String?
     getter partial_json : String? # for tool use streaming
     getter thinking : String?     # for extended thinking
+    getter signature : String?    # for thinking block signature (signature_delta type)
   end
 end
 
